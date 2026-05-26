@@ -1,11 +1,16 @@
 from pathlib import Path
 from datetime import timedelta
+import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Hardcoded for now — no .env needed
-SECRET_KEY = 'django-insecure-gm_k#vy7@lih=rthvb+p5=zfkrs3zvl6_=temmw-)_p$uq7tqa'
-DEBUG = True
+# ── SECRET KEY ────────────────────────────────────────────────
+# In production this comes from Vercel environment variable
+SECRET_KEY = os.environ.get(
+    'SECRET_KEY'
+)
+
+DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
@@ -28,8 +33,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',   # ← MUST be first
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -56,20 +62,36 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'core.wsgi.application'
+WSGI_APPLICATION = 'core.wsgi.app'
 
-CORS_ALLOW_ALL_ORIGINS = True
-# SQLite — no PostgreSQL needed right now
-DATABASES = {
-    'default': {
-        'ENGINE':   'django.db.backends.postgresql',
-        'NAME':     'cryptovault_db',
-        'USER':     'cryptovault_user',
-        'PASSWORD': 'cryptovault123',
-        'HOST':     'localhost',
-        'PORT':     '5432',
+# ── DATABASE ──────────────────────────────────────────────────
+# If DATABASE_URL env variable exists → use it (Neon on Vercel)
+# Otherwise → use local PostgreSQL for development
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
+if DATABASE_URL:
+    # Production — Neon PostgreSQL via DATABASE_URL
+    import dj_database_url
+    DATABASES = {
+        'default': dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True,
+        )
     }
-}
+else:
+    # Local development — your local PostgreSQL
+    DATABASES = {
+        'default': {
+            'ENGINE':   'django.db.backends.postgresql',
+            'NAME':     'cryptovault_db',
+            'USER':     'cryptovault_user',
+            'PASSWORD': 'cryptovault123',
+            'HOST':     'localhost',
+            'PORT':     '5432',
+        }
+    }
+
 AUTH_USER_MODEL = 'users.User'
 
 REST_FRAMEWORK = {
@@ -83,10 +105,9 @@ REST_FRAMEWORK = {
         'django_filters.rest_framework.DjangoFilterBackend',
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 20,
+    'PAGE_SIZE': 50,
 }
 
-from datetime import timedelta
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME':    timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME':   timedelta(days=7),
@@ -95,13 +116,21 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES':        ('Bearer',),
 }
 
-CORS_ALLOWED_ORIGINS = ['http://localhost:3000']
-CORS_ALLOW_CREDENTIALS = True
+# ── CORS ──────────────────────────────────────────────────────
+CORS_ALLOW_ALL_ORIGINS   = True   # allow all for now
+CORS_ALLOW_CREDENTIALS   = True
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+    os.environ.get('FRONTEND_URL', 'https://your-frontend.vercel.app'),
+]
 
-STATIC_URL  = '/static/'
-MEDIA_URL   = '/media/'
-MEDIA_ROOT  = BASE_DIR / 'media'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+# ── STATIC FILES ──────────────────────────────────────────────
+STATIC_URL    = '/static/'
+STATIC_ROOT   = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+MEDIA_URL  = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -115,5 +144,5 @@ TIME_ZONE     = 'Asia/Kolkata'
 USE_I18N = True
 USE_TZ   = True
 
-COINGECKO_API_URL = 'https://api.coingecko.com/api/v3'
+COINGECKO_API_URL  = 'https://api.coingecko.com/api/v3'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
