@@ -1,6 +1,7 @@
 from pathlib import Path
 from datetime import timedelta
 import os
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -69,28 +70,17 @@ WSGI_APPLICATION = 'core.wsgi.app'
 # Otherwise → use local PostgreSQL for development
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
-if DATABASE_URL:
-    # Production — Neon PostgreSQL via DATABASE_URL
-    import dj_database_url
-    DATABASES = {
-        'default': dj_database_url.parse(
-            DATABASE_URL,
-            conn_max_age=600,
-            ssl_require=True,
-        )
-    }
-else:
-    # Local development — your local PostgreSQL
-    DATABASES = {
-        'default': {
-            'ENGINE':   'django.db.backends.postgresql',
-            'NAME':     'cryptovault_db',
-            'USER':     'cryptovault_user',
-            'PASSWORD': 'cryptovault123',
-            'HOST':     'localhost',
-            'PORT':     '5432',
-        }
-    }
+if not DATABASE_URL:
+    raise Exception("DATABASE_URL not found")
+
+DATABASES = {
+    'default': dj_database_url.parse(
+        DATABASE_URL,
+        conn_max_age=600,
+        ssl_require=True,
+    )
+}
+
 
 AUTH_USER_MODEL = 'users.User'
 
