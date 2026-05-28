@@ -18,12 +18,15 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
- 
+from django.views.generic import RedirectView
+
+
 admin.site.site_header = 'CryptoVault Admin'
 admin.site.site_title  = 'CryptoVault'
 admin.site.index_title = 'Dashboard'
 
 urlpatterns = [
+    path('', RedirectView.as_view(url='/admin/', permanent=False)),
     path('admin/',      admin.site.urls),
     path('api/auth/',   include('users.urls')),
     path('api/coins/',  include('coins.urls')),
