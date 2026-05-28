@@ -1,14 +1,12 @@
 from pathlib import Path
 from datetime import timedelta
 import os
-import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# ── SECRET KEY ────────────────────────────────────────────────
-# In production this comes from Vercel environment variable
 SECRET_KEY = os.environ.get(
-    'SECRET_KEY'
+    'SECRET_KEY',
+    'django-insecure-gm_k#vy7@lih=rthvb+p5=zfkrs3zvl6_=temmw-)_p$uq7tqa'
 )
 
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
@@ -66,21 +64,30 @@ TEMPLATES = [
 WSGI_APPLICATION = 'core.wsgi.app'
 
 # ── DATABASE ──────────────────────────────────────────────────
-# If DATABASE_URL env variable exists → use it (Neon on Vercel)
-# Otherwise → use local PostgreSQL for development
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
-if not DATABASE_URL:
-    raise Exception("DATABASE_URL not found")
-
-DATABASES = {
-    'default': dj_database_url.parse(
-        DATABASE_URL,
-        conn_max_age=600,
-        ssl_require=True,
-    )
-}
-
+if DATABASE_URL:
+    # Production — Neon PostgreSQL via DATABASE_URL
+    import dj_database_url
+    DATABASES = {
+        'default': dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True,
+        )
+    }
+else:
+    # Local development — local PostgreSQL
+    DATABASES = {
+        'default': {
+            'ENGINE':   'django.db.backends.postgresql',
+            'NAME':     'cryptovault_db',
+            'USER':     'cryptovault_user',
+            'PASSWORD': 'cryptovault123',
+            'HOST':     'localhost',
+            'PORT':     '5432',
+        }
+    }
 
 AUTH_USER_MODEL = 'users.User'
 
@@ -106,15 +113,13 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES':        ('Bearer',),
 }
 
-# ── CORS ──────────────────────────────────────────────────────
-CORS_ALLOW_ALL_ORIGINS   = True   # allow all for now
+CORS_ALLOW_ALL_ORIGINS   = True
 CORS_ALLOW_CREDENTIALS   = True
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     os.environ.get('FRONTEND_URL', 'https://your-frontend.vercel.app'),
 ]
 
-# ── STATIC FILES ──────────────────────────────────────────────
 STATIC_URL    = '/static/'
 STATIC_ROOT   = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
@@ -131,8 +136,8 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE     = 'Asia/Kolkata'
-USE_I18N = True
-USE_TZ   = True
+USE_I18N      = True
+USE_TZ        = True
 
 COINGECKO_API_URL  = 'https://api.coingecko.com/api/v3'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
