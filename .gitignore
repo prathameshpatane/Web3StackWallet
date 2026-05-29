@@ -1,0 +1,5 @@
+.env
+/cryptovault-backend/venv
+.env.local
+.next/
+node_modules/
