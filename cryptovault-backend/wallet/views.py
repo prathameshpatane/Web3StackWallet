@@ -1,11 +1,10 @@
-# wallet/views.py — ADD buy_request view + fix withdraw validation
-
 import decimal
 from django.db import transaction as db_transaction
 from rest_framework import generics, permissions, serializers
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from .models import UserWallet, BuyRequest
+from rest_framework.request import Request
+from .models import UserWallet, BuyRequest, PaymentSettings
 from coins.models import Coin
 from transactions.models import Transaction
 
@@ -76,6 +75,7 @@ class BuyRequestSerializer(serializers.ModelSerializer):
 
 
 # ── Views ─────────────────────────────────────────────────────
+
 class WalletListView(generics.ListAPIView):
     """GET /api/wallet/"""
     serializer_class   = WalletSerializer
@@ -92,7 +92,7 @@ class WalletListView(generics.ListAPIView):
 
 
 class BuyRequestListView(generics.ListAPIView):
-    """GET /api/wallet/buy-requests/ — user's buy request history"""
+    """GET /api/wallet/buy-requests/ — user sees their own buy request history"""
     serializer_class   = BuyRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class   = None
@@ -101,11 +101,35 @@ class BuyRequestListView(generics.ListAPIView):
         return BuyRequest.objects.filter(user=self.request.user)
 
 
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def get_payment_settings(request):
+    """
+    GET /api/wallet/payment-settings/
+    Returns UPI ID, QR code URL, and payment instructions.
+    Frontend uses this to show payment details to users.
+    No auth needed — public endpoint.
+    """
+    settings_obj = PaymentSettings.get_settings()
+    qr_url = None
+    if settings_obj.qr_image:
+        qr_url = request.build_absolute_uri(settings_obj.qr_image.url)
+
+    return Response({
+        'upi_id':       settings_obj.upi_id,
+        'upi_name':     settings_obj.upi_name,
+        'phone_number': settings_obj.phone_number,
+        'qr_image_url': qr_url,
+        'payment_note': settings_obj.payment_note,
+        'is_active':    settings_obj.is_active,
+    })
+
+
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def create_buy_request(request):
     """
-    POST /api/wallet/buy-request/
+    POST /api/wallet/buy/
     Multipart form: coin_id, usd_amount, inr_amount, transaction_id, screenshot
     """
     user = request.user
@@ -116,7 +140,6 @@ def create_buy_request(request):
     transaction_id = request.data.get('transaction_id', '').strip()
     screenshot     = request.FILES.get('screenshot')
 
-    # Validations
     if not coin_id:
         return Response({'error': 'coin_id is required'}, status=400)
     if usd_amount <= 0:
@@ -126,7 +149,6 @@ def create_buy_request(request):
     if not screenshot:
         return Response({'error': 'Payment screenshot is required'}, status=400)
 
-    # Check for duplicate transaction ID
     if BuyRequest.objects.filter(transaction_id=transaction_id).exists():
         return Response({'error': 'This transaction ID has already been submitted'}, status=400)
 
@@ -135,10 +157,10 @@ def create_buy_request(request):
     except Coin.DoesNotExist:
         return Response({'error': 'Coin not found'}, status=404)
 
-    price_usd    = decimal.Decimal(str(coin_price_usd(coin)))
-    fee          = usd_amount * decimal.Decimal('0.001')
-    net_usd      = usd_amount - fee
-    coin_qty     = net_usd / price_usd if price_usd > 0 else decimal.Decimal('0')
+    price_usd = decimal.Decimal(str(coin_price_usd(coin)))
+    fee       = usd_amount * decimal.Decimal('0.001')
+    net_usd   = usd_amount - fee
+    coin_qty  = net_usd / price_usd if price_usd > 0 else decimal.Decimal('0')
 
     buy_req = BuyRequest.objects.create(
         user           = user,
@@ -163,6 +185,70 @@ def create_buy_request(request):
 
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
+def sell_coin(request):
+    """
+    POST /api/wallet/sell/
+    Body: { "coin_id": <int>, "coin_amount": <float> }
+    Sells coins → adds USD to user's usd_balance
+    """
+    user        = request.user
+    coin_id     = request.data.get('coin_id')
+    coin_amount = decimal.Decimal(str(request.data.get('coin_amount', 0)))
+
+    if coin_amount <= 0:
+        return Response({'error': 'Amount must be greater than 0.'}, status=400)
+
+    try:
+        coin   = Coin.objects.get(id=coin_id, is_active=True)
+        wallet = UserWallet.objects.get(user=user, coin=coin)
+    except Coin.DoesNotExist:
+        return Response({'error': 'Coin not found.'}, status=404)
+    except UserWallet.DoesNotExist:
+        return Response({'error': f"You don't hold any {coin.symbol}."}, status=404)
+
+    if wallet.balance < coin_amount:
+        return Response({
+            'error': f'Insufficient {coin.symbol}. You have {float(wallet.balance):.6f}.'
+        }, status=400)
+
+    price_usd = decimal.Decimal(str(coin_price_usd(coin)))
+    if price_usd <= 0:
+        return Response({
+            'error': f'{coin.name} has no price. Ask admin to set price.'
+        }, status=400)
+
+    usd_gross = coin_amount * price_usd
+    fee       = usd_gross * decimal.Decimal('0.001')
+    usd_net   = usd_gross - fee
+
+    with db_transaction.atomic():
+        wallet.balance -= coin_amount
+        wallet.save(update_fields=['balance'])
+
+        user.usd_balance += usd_net
+        user.save(update_fields=['usd_balance'])
+
+        Transaction.objects.create(
+            user              = user,
+            type              = 'sell',
+            coin              = coin,
+            coin_amount       = coin_amount,
+            usd_amount        = usd_gross,
+            inr_amount        = usd_gross * decimal.Decimal(str(coin_rate(coin))),
+            price_at_time_usd = price_usd,
+            fee_usd           = fee,
+            status            = 'completed',
+        )
+
+    return Response({
+        'message':         f'✅ Sold {float(coin_amount):.6f} {coin.symbol}',
+        'usd_received':    str(round(usd_net, 4)),
+        'new_usd_balance': str(round(user.usd_balance, 4)),
+    })
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
 def convert_to_inr(request):
     """POST /api/wallet/convert-to-inr/"""
     usd_amount = float(request.data.get('usd_amount', 0))
@@ -178,10 +264,7 @@ def convert_to_inr(request):
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def withdraw_inr(request):
-    """
-    POST /api/wallet/withdraw-inr/
-    Validates user has enough USD balance before creating withdrawal
-    """
+    """POST /api/wallet/withdraw-inr/"""
     user       = request.user
     usd_amount = decimal.Decimal(str(request.data.get('usd_amount', 0)))
     method     = request.data.get('method', 'upi')
@@ -190,20 +273,19 @@ def withdraw_inr(request):
     if usd_amount <= 0:
         return Response({'error': 'Amount must be greater than $0.'}, status=400)
 
-    # ── STRICT BALANCE CHECK ──────────────────────────────────
     if user.usd_balance < usd_amount:
         return Response({
-            'error': f'Insufficient USD balance. You have ${float(user.usd_balance):.2f} but requested ${float(usd_amount):.2f}.'
+            'error': f'Insufficient USD balance. You have ${float(user.usd_balance):.2f}.'
         }, status=400)
 
     if not account.strip():
         return Response({'error': 'Bank account / UPI ID is required.'}, status=400)
 
-    coin     = Coin.objects.filter(is_active=True, usd_to_inr_rate__gt=0).first()
-    rate     = decimal.Decimal(str(coin_rate(coin) if coin else 83.5))
-    inr_amt  = usd_amount * rate
-    fee_inr  = inr_amt * decimal.Decimal('0.002')
-    net_inr  = inr_amt - fee_inr
+    coin    = Coin.objects.filter(is_active=True, usd_to_inr_rate__gt=0).first()
+    rate    = decimal.Decimal(str(coin_rate(coin) if coin else 83.5))
+    inr_amt = usd_amount * rate
+    fee_inr = inr_amt * decimal.Decimal('0.002')
+    net_inr = inr_amt - fee_inr
 
     with db_transaction.atomic():
         user.usd_balance -= usd_amount
