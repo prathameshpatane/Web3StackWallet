@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import { useAuthStore } from '@/store/authStore'
+import NotificationBell from '@/components/NotificationBell'
 
 const NAV = [
   { label: 'Dashboard',  href: '/dashboard', icon: '📊', section: 'Main'    },
@@ -23,6 +24,19 @@ const MOBILE = [
   { label: 'Wallet', href: '/wallet',    icon: '👛' },
   { label: 'KYC',    href: '/kyc',       icon: '🪪' },
 ]
+
+// Map hrefs to readable page titles
+const PAGE_TITLES: Record<string, string> = {
+  '/dashboard': 'Dashboard',
+  '/market':    'Market',
+  '/buy-sell':  'Buy / Sell',
+  '/wallet':    'Wallet',
+  '/portfolio': 'Portfolio',
+  '/withdraw':  'Withdraw',
+  '/history':   'History',
+  '/kyc':       'KYC Verification',
+  '/settings':  'Settings',
+}
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -77,7 +91,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             </div>
           </div>
-          {/* USD Balance */}
           <div style={{
             background: 'var(--bg)', borderRadius: 8, padding: '8px 12px',
             marginBottom: 8, fontSize: 12,
@@ -91,7 +104,51 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      <main className="dash-main">{children}</main>
+      {/* MAIN AREA */}
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+
+        {/* ── TOP HEADER BAR ── */}
+        <header style={{
+          display:        'flex',
+          alignItems:     'center',
+          justifyContent: 'space-between',
+          padding:        '0 24px',
+          height:         60,
+          borderBottom:   '1px solid var(--border)',
+          background:     'var(--bg2)',
+          position:       'sticky',
+          top:            0,
+          zIndex:         50,
+          flexShrink:     0,
+        }}>
+          {/* Page title */}
+          <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)' }}>
+            {PAGE_TITLES[pathname] || 'CryptoVault'}
+          </div>
+
+          {/* Right side: USD balance chip + notification bell */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{
+              background:   'var(--card)',
+              border:       '1px solid var(--border)',
+              borderRadius: 8,
+              padding:      '6px 14px',
+              fontSize:     13,
+              fontFamily:   'var(--mono)',
+              color:        'var(--accent)',
+              fontWeight:   600,
+            }}>
+              💵 ${parseFloat(user?.usd_balance || '0').toFixed(2)}
+            </div>
+
+            {/* 🔔 NOTIFICATION BELL — right here */}
+            <NotificationBell />
+          </div>
+        </header>
+
+        {/* Page content */}
+        <main className="dash-main">{children}</main>
+      </div>
 
       {/* MOBILE NAV */}
       <nav className="mobile-nav">

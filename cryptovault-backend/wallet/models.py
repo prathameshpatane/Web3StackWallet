@@ -1,3 +1,4 @@
+# wallet/models.py
 
 from django.db import models
 from django.conf import settings
@@ -28,24 +29,34 @@ class UserWallet(models.Model):
 
 class PaymentSettings(models.Model):
     """
-    Admin uploads UPI ID, phone number, and QR code image here.
-    Frontend fetches this to show payment details to users.
-    Only ONE record should exist — use singleton pattern.
+    Admin uploads UPI ID, QR code, and bank details here.
+    Frontend fetches this to show payment options to users.
+    Only ONE record — singleton pattern.
     """
-    upi_id       = models.CharField(max_length=200, help_text='e.g. cryptovault@upi')
-    upi_name     = models.CharField(max_length=200, help_text='Name shown in UPI apps')
-    phone_number = models.CharField(max_length=20,  help_text='WhatsApp/contact for payment issues')
+    # ── UPI ──────────────────────────────────────────────────
+    upi_id       = models.CharField(max_length=200, blank=True, help_text='e.g. cryptovault@upi')
+    upi_name     = models.CharField(max_length=200, blank=True, help_text='Name shown in UPI apps')
+    phone_number = models.CharField(max_length=20,  blank=True, help_text='WhatsApp/contact number')
     qr_image     = models.ImageField(
         upload_to='payment/qr/',
         blank=True, null=True,
         help_text='Upload your UPI QR code image'
     )
+
+    # ── Bank Transfer ─────────────────────────────────────────
+    bank_name           = models.CharField(max_length=200, blank=True, help_text='e.g. State Bank of India')
+    bank_branch         = models.CharField(max_length=200, blank=True, help_text='e.g. Connaught Place, New Delhi')
+    account_holder_name = models.CharField(max_length=200, blank=True, help_text='Name on the bank account')
+    account_number      = models.CharField(max_length=50,  blank=True, help_text='Bank account number')
+    ifsc_code           = models.CharField(max_length=20,  blank=True, help_text='e.g. SBIN0001234')
+
+    # ── General ───────────────────────────────────────────────
     payment_note = models.TextField(
         default='Include your registered email in payment remarks.',
         help_text='Instructions shown to user during payment'
     )
-    is_active    = models.BooleanField(default=True)
-    updated_at   = models.DateTimeField(auto_now=True)
+    is_active  = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name        = 'Payment Settings'
@@ -56,25 +67,24 @@ class PaymentSettings(models.Model):
 
     @classmethod
     def get_settings(cls):
-        """Always returns the one settings object, creates default if none exists"""
         obj, _ = cls.objects.get_or_create(
             id=1,
             defaults={
-                'upi_id':       'cryptovault@upi',
-                'upi_name':     'CryptoVault',
-                'phone_number': '+91 98765 43210',
-                'payment_note': 'Include your registered email in payment remarks.',
+                'upi_id':             'cryptovault@upi',
+                'upi_name':           'CryptoVault',
+                'phone_number':       '+91 98765 43210',
+                'bank_name':          '',
+                'bank_branch':        '',
+                'account_holder_name': '',
+                'account_number':     '',
+                'ifsc_code':          '',
+                'payment_note':       'Include your registered email in payment remarks.',
             }
         )
         return obj
 
 
 class BuyRequest(models.Model):
-    """
-    User submits buy request after making UPI payment.
-    Admin sees it in admin panel, reviews screenshot, approves/rejects.
-    On approval — coins are automatically added to user wallet.
-    """
     STATUS_CHOICES = [
         ('pending',  'Pending Review'),
         ('approved', 'Approved'),

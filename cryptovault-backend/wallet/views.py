@@ -101,29 +101,46 @@ class BuyRequestListView(generics.ListAPIView):
         return BuyRequest.objects.filter(user=self.request.user)
 
 
+# Replace ONLY the get_payment_settings view in wallet/views.py
+
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def get_payment_settings(request):
     """
     GET /api/wallet/payment-settings/
-    Returns UPI ID, QR code URL, and payment instructions.
-    Frontend uses this to show payment details to users.
-    No auth needed — public endpoint.
+    Returns UPI + Bank details for frontend payment page.
     """
+    from django.conf import settings as django_settings
+
     settings_obj = PaymentSettings.get_settings()
+
+    # Build absolute QR URL using the backend's own domain
     qr_url = None
     if settings_obj.qr_image:
-        qr_url = request.build_absolute_uri(settings_obj.qr_image.url)
+        backend_url = getattr(django_settings, 'BACKEND_URL', '').rstrip('/')
+        if backend_url:
+            # Production: use BACKEND_URL env variable
+            qr_url = f"{backend_url}{settings_obj.qr_image.url}"
+        else:
+            # Fallback: build from request (works on localhost)
+            qr_url = request.build_absolute_uri(settings_obj.qr_image.url)
 
     return Response({
+        # UPI
         'upi_id':       settings_obj.upi_id,
         'upi_name':     settings_obj.upi_name,
         'phone_number': settings_obj.phone_number,
         'qr_image_url': qr_url,
+        # Bank
+        'bank_name':            settings_obj.bank_name,
+        'bank_branch':          settings_obj.bank_branch,
+        'account_holder_name':  settings_obj.account_holder_name,
+        'account_number':       settings_obj.account_number,
+        'ifsc_code':            settings_obj.ifsc_code,
+        # General
         'payment_note': settings_obj.payment_note,
         'is_active':    settings_obj.is_active,
     })
-
 
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])

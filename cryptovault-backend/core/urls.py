@@ -37,4 +37,5 @@ urlpatterns = [
     path('api/kyc/',          include('kyc.urls')),
     path('api/wallet/',       include('wallet.urls')),
     path('api/transactions/', include('transactions.urls')),
+    path('api/notifications/', include('notifications.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

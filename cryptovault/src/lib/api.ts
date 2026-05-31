@@ -171,3 +171,31 @@ export const txAPI = {
     }
   },
 }
+
+// Add Notification API methods as needed, following the same pattern.
+
+// ADD this to your existing src/lib/api.ts at the bottom
+
+export const notificationsAPI = {
+  async getAll() {
+    const res = await api.get('/notifications/')
+    return Array.isArray(res.data) ? res.data : (res.data.results || [])
+  },
+
+  async getUnreadCount(): Promise<number> {
+    try {
+      const res = await api.get('/notifications/unread-count/')
+      return res.data.unread || 0
+    } catch {
+      return 0
+    }
+  },
+
+  async markRead(id: number) {
+    await api.post(`/notifications/${id}/read/`)
+  },
+
+  async markAllRead() {
+    await api.post('/notifications/mark-all-read/')
+  },
+}

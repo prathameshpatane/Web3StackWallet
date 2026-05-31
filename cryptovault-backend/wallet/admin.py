@@ -1,4 +1,4 @@
-# wallet/admin.py — REPLACE your entire file
+# wallet/admin.py
 
 from django.contrib import admin
 from django.utils import timezone
@@ -7,22 +7,23 @@ from django.db import transaction as db_transaction
 from .models import UserWallet, PaymentSettings, BuyRequest
 
 
-# ── Payment Settings — admin uploads UPI + QR ─────────────────
 @admin.register(PaymentSettings)
 class PaymentSettingsAdmin(admin.ModelAdmin):
-    """
-    Admin uploads UPI ID and QR code here.
-    This is shown to users during the buy flow.
-    """
-    list_display = ('upi_id', 'upi_name', 'phone_number', 'is_active', 'updated_at')
+    list_display = ('upi_id', 'upi_name', 'bank_name', 'account_number', 'is_active', 'updated_at')
     fieldsets = (
-        ('UPI Payment Details', {
-            'description': 'These details are shown to users when they buy crypto.',
+        ('UPI Payment', {
+            'description': 'Users can pay via UPI. Fill UPI ID and upload QR code.',
             'fields': ('upi_id', 'upi_name', 'phone_number', 'is_active'),
         }),
         ('QR Code', {
-            'description': 'Upload your UPI QR code image. Users can scan this to pay.',
             'fields': ('qr_image', 'qr_preview'),
+        }),
+        ('Bank Transfer (NEFT/IMPS)', {
+            'description': 'Fill these fields to allow bank transfer payments.',
+            'fields': (
+                'bank_name', 'bank_branch',
+                'account_holder_name', 'account_number', 'ifsc_code',
+            ),
         }),
         ('Instructions', {
             'fields': ('payment_note',),
@@ -40,14 +41,12 @@ class PaymentSettingsAdmin(admin.ModelAdmin):
     qr_preview.short_description = 'QR Code Preview'
 
     def has_add_permission(self, request):
-        # Only allow ONE PaymentSettings record
         return not PaymentSettings.objects.exists()
 
     def has_delete_permission(self, request, obj=None):
-        return False  # Don't allow deletion
+        return False
 
 
-# ── User Wallets ───────────────────────────────────────────────
 @admin.register(UserWallet)
 class WalletAdmin(admin.ModelAdmin):
     list_display  = ('user', 'coin', 'balance', 'value_usd_display', 'value_inr_display', 'updated_at')
@@ -70,7 +69,6 @@ class WalletAdmin(admin.ModelAdmin):
     value_inr_display.short_description = 'Value (INR)'
 
 
-# ── Buy Requests — main admin workflow ────────────────────────
 @admin.register(BuyRequest)
 class BuyRequestAdmin(admin.ModelAdmin):
     list_display  = (
@@ -91,19 +89,10 @@ class BuyRequestAdmin(admin.ModelAdmin):
     )
 
     fieldsets = (
-        ('👤 User & Coin', {
-            'fields': ('user', 'coin', 'coin_quantity', 'coin_price_usd')
-        }),
-        ('💰 Payment Details', {
-            'fields': ('usd_amount', 'inr_amount', 'transaction_id', 'screenshot_preview')
-        }),
-        ('✅ Admin Decision', {
-            'fields': ('status', 'admin_note', 'reviewed_by', 'reviewed_at')
-        }),
-        ('📅 Timestamps', {
-            'fields': ('created_at',),
-            'classes': ('collapse',),
-        }),
+        ('👤 User & Coin', {'fields': ('user', 'coin', 'coin_quantity', 'coin_price_usd')}),
+        ('💰 Payment', {'fields': ('usd_amount', 'inr_amount', 'transaction_id', 'screenshot_preview')}),
+        ('✅ Admin Decision', {'fields': ('status', 'admin_note', 'reviewed_by', 'reviewed_at')}),
+        ('📅 Timestamps', {'fields': ('created_at',), 'classes': ('collapse',)}),
     )
 
     def request_id(self, obj): return f'#CVR{str(obj.id).zfill(6)}'
@@ -122,87 +111,56 @@ class BuyRequestAdmin(admin.ModelAdmin):
 
     def screenshot_link(self, obj):
         if obj.screenshot:
-            return format_html(
-                '<a href="{}" target="_blank">📷 View</a>', obj.screenshot.url
-            )
+            return format_html('<a href="{}" target="_blank">📷 View</a>', obj.screenshot.url)
         return '—'
     screenshot_link.short_description = 'Screenshot'
 
     def screenshot_preview(self, obj):
         if obj.screenshot:
             return format_html(
-                '<img src="{}" style="max-width:500px;max-height:400px;border-radius:8px;border:1px solid #333;" />',
+                '<img src="{}" style="max-width:500px;max-height:400px;border-radius:8px;" />',
                 obj.screenshot.url
             )
-        return 'No screenshot uploaded'
+        return 'No screenshot'
     screenshot_preview.short_description = 'Payment Screenshot'
 
-    # ── APPROVE ACTION — coins added automatically ─────────────
     @admin.action(description='✅ APPROVE — Add coins to user wallet')
     def approve_requests(self, request, queryset):
-        approved = 0
-        errors   = []
-
+        from transactions.models import Transaction
+        approved, errors = 0, []
         for req in queryset.filter(status='pending'):
             try:
                 with db_transaction.atomic():
-                    # Add coins to user wallet
-                    wallet, created = UserWallet.objects.get_or_create(
-                        user=req.user, coin=req.coin
-                    )
-                    old_balance    = wallet.balance
+                    wallet, _ = UserWallet.objects.get_or_create(user=req.user, coin=req.coin)
                     wallet.balance += req.coin_quantity
                     wallet.save()
-
-                    # Mark request as approved
                     req.status      = 'approved'
                     req.reviewed_by = request.user
                     req.reviewed_at = timezone.now()
                     req.save()
-
-                    # Log in transactions
                     Transaction.objects.create(
-                        user              = req.user,
-                        type              = 'buy',
-                        coin              = req.coin,
-                        coin_amount       = req.coin_quantity,
-                        usd_amount        = req.usd_amount,
-                        inr_amount        = req.inr_amount,
-                        price_at_time_usd = req.coin_price_usd,
-                        fee_usd           = req.usd_amount * 1 / 1000,
-                        status            = 'completed',
-                        notes             = f'UPI payment approved by {request.user.email}. TxID: {req.transaction_id}',
+                        user=req.user, type='buy', coin=req.coin,
+                        coin_amount=req.coin_quantity, usd_amount=req.usd_amount,
+                        inr_amount=req.inr_amount, price_at_time_usd=req.coin_price_usd,
+                        fee_usd=req.usd_amount * 1 / 1000, status='completed',
+                        notes=f'UPI approved by {request.user.email}. TxID: {req.transaction_id}',
                     )
-
                 approved += 1
-
             except Exception as e:
-                errors.append(f'Request #{req.id}: {str(e)}')
-
+                errors.append(f'#{req.id}: {e}')
         if approved:
-            self.message_user(
-                request,
-                f'✅ {approved} request(s) approved. Coins added to user wallets successfully.'
-            )
+            self.message_user(request, f'✅ {approved} request(s) approved.')
         for err in errors:
-            self.message_user(request, f'❌ Error: {err}', level='ERROR')
+            self.message_user(request, f'❌ {err}', level='ERROR')
 
-    # ── REJECT ACTION ──────────────────────────────────────────
     @admin.action(description='❌ REJECT — Payment not verified')
     def reject_requests(self, request, queryset):
         rejected = 0
         for req in queryset.filter(status='pending'):
-            req.status      = 'rejected'
-            req.reviewed_by = request.user
-            req.reviewed_at = timezone.now()
-            req.save()
+            req.status = 'rejected'; req.reviewed_by = request.user
+            req.reviewed_at = timezone.now(); req.save()
             rejected += 1
-
-        self.message_user(
-            request,
-            f'❌ {rejected} request(s) rejected.'
-        )
-
+        self.message_user(request, f'❌ {rejected} request(s) rejected.')
 
 # Import here to avoid circular import
 from transactions.models import Transaction
