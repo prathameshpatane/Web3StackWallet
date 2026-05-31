@@ -15,15 +15,9 @@ class KYCDocument(models.Model):
 
     # Aadhaar
     aadhaar_number = models.CharField(max_length=14, blank=True)
-    aadhaar_front  = models.ImageField(upload_to='kyc/aadhaar/', blank=True)
-    aadhaar_back   = models.ImageField(upload_to='kyc/aadhaar/', blank=True)
 
     # PAN
     pan_number  = models.CharField(max_length=10, blank=True)
-    pan_image   = models.ImageField(upload_to='kyc/pan/', blank=True)
-
-    # Selfie
-    selfie_image = models.ImageField(upload_to='kyc/selfie/', blank=True)
 
     status           = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     rejection_reason = models.TextField(blank=True)

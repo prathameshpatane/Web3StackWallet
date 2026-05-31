@@ -8,8 +8,8 @@ class KYCSerializer(serializers.ModelSerializer):
         model  = KYCDocument
         fields = (
             'id', 'full_name', 'date_of_birth',
-            'aadhaar_number', 'aadhaar_front', 'aadhaar_back',
-            'pan_number', 'pan_image', 'selfie_image',
+            'aadhaar_number',
+            'pan_number',
             'status', 'rejection_reason', 'submitted_at',
         )
         read_only_fields = ('status', 'rejection_reason', 'submitted_at')
