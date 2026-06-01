@@ -29,13 +29,14 @@ export default function DashboardPage() {
   useEffect(() => {
     async function load() {
       try {
+        // ── Load all three in parallel, await all ──────────
         const [w, rate] = await Promise.all([
           walletAPI.getWallet(),
           coinsAPI.getUsdToInr(),
+          loadUser(),          // ← awaited inside Promise.all now
         ])
         setWallet(Array.isArray(w) ? w : (w.results || []))
         setRate(rate)
-        await loadUser()
       } catch (e) {
         console.error(e)
       } finally {
@@ -45,11 +46,12 @@ export default function DashboardPage() {
     load()
   }, [])
 
-  const usdBalance   = parseFloat(user?.usd_balance || '0')
+  // ── These read from store AFTER loadUser() resolves ──────
+  const usdBalance   = parseFloat(String(user?.usd_balance ?? '0'))
   const portfolioUsd = wallet.reduce((s, w) => s + (w.value_in_usd || 0), 0)
   const totalUsd     = usdBalance + portfolioUsd
   const totalInr     = totalUsd * usdToInr
-  const kycOk        = user?.is_kyc_verified
+  const kycOk        = user?.is_kyc_verified || user?.kyc_status === 'approved'
   const hour         = new Date().getHours()
   const greeting     = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 
@@ -58,9 +60,7 @@ export default function DashboardPage() {
       <div className="dash-header">
         <h1 className="dash-header-title">Dashboard</h1>
         <div className="dash-header-right">
-          <div className="header-badge">
-            <span className="notif-dot" /> Live
-          </div>
+          <div className="header-badge"><span className="notif-dot" /> Live</div>
           <div className="header-badge">1 USD = ₹{fmt(usdToInr)}</div>
         </div>
       </div>
@@ -88,44 +88,49 @@ export default function DashboardPage() {
             <Link href="/buy-sell" style={{
               background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
               border: 'none', borderRadius: 8, padding: '9px 20px',
-              color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+              color: '#fff', fontWeight: 700, fontSize: 13,
               textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6,
-            }}>
-              💱 Trade Crypto
-            </Link>
+            }}>💱 Trade Crypto</Link>
             <Link href="/withdraw" style={{
               background: 'var(--card)', border: '1px solid var(--border)',
               borderRadius: 8, padding: '9px 20px', color: 'var(--text)',
-              fontWeight: 600, fontSize: 13, cursor: 'pointer', textDecoration: 'none',
+              fontWeight: 600, fontSize: 13, textDecoration: 'none',
               display: 'inline-flex', alignItems: 'center', gap: 6,
-            }}>
-              ⬆️ Withdraw
-            </Link>
+            }}>⬆️ Withdraw</Link>
           </div>
         </div>
 
-        {/* KYC banner */}
-        {!kycOk && (
+        {/* KYC banner — only show when not approved */}
+        {/* {!kycOk && (
           <div style={{
             background: 'rgba(255,184,0,0.07)', border: '1px solid rgba(255,184,0,0.2)',
             borderRadius: 10, padding: '12px 16px', marginBottom: '1.5rem',
             fontSize: 13, color: 'var(--accent-amber)',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
           }}>
-            <span>⚠️ <strong>KYC {user?.kyc_status === 'pending' ? 'Under Review' : 'Pending'}</strong>
+            <span>
+              ⚠️ <strong>
+                {user?.kyc_status === 'pending'   ? 'KYC Under Review'  :
+                 user?.kyc_status === 'rejected'  ? 'KYC Rejected'      :
+                 'KYC Not Submitted'}
+              </strong>
+              {' — '}
               {user?.kyc_status === 'pending'
-                ? ' — Your documents are being reviewed.'
-                : ' — Complete Aadhaar & PAN verification to unlock withdrawals.'}
+                ? 'Your documents are being reviewed. Usually takes 24-48 hours.'
+                : user?.kyc_status === 'rejected'
+                ? 'Your KYC was rejected. Please resubmit with correct details.'
+                : 'Complete verification to unlock withdrawals.'}
             </span>
-            {user?.kyc_status !== 'pending' && (
-              <Link href="/kyc" style={{ color: 'var(--accent-amber)', fontWeight: 700, textDecoration: 'none' }}>
-                Verify Now →
-              </Link>
-            )}
+            <Link href="/kyc" style={{
+              color: 'var(--accent-amber)', fontWeight: 700,
+              textDecoration: 'none', whiteSpace: 'nowrap',
+            }}>
+              {user?.kyc_status === 'pending' ? 'View Status →' : 'Verify Now →'}
+            </Link>
           </div>
-        )}
+        )} */}
 
-        {/* Stat cards — real data only */}
+        {/* Stat cards */}
         <div className="grid-4 mb-3">
           <div className="stat-card">
             <div className="stat-label">💵 USD Balance</div>
@@ -136,7 +141,6 @@ export default function DashboardPage() {
               ≈ ₹{loading ? '...' : fmt(usdBalance * usdToInr)}
             </div>
           </div>
-
           <div className="stat-card">
             <div className="stat-label">📊 Portfolio (USD)</div>
             <div className="stat-value" style={{ fontSize: 22 }}>
@@ -146,7 +150,6 @@ export default function DashboardPage() {
               ≈ ₹{loading ? '...' : fmt(portfolioUsd * usdToInr)}
             </div>
           </div>
-
           <div className="stat-card">
             <div className="stat-label">💰 Total Value</div>
             <div className="stat-value" style={{ fontSize: 22 }}>
@@ -156,7 +159,6 @@ export default function DashboardPage() {
               ≈ ₹{loading ? '...' : fmt(totalInr)}
             </div>
           </div>
-
           <div className="stat-card">
             <div className="stat-label">🪙 Coins Held</div>
             <div className="stat-value" style={{ fontSize: 22 }}>
@@ -168,13 +170,12 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Holdings table OR empty state */}
+        {/* Holdings */}
         <div className="card mb-3">
           <div className="section-title">
             Your Holdings
             <Link href="/buy-sell" className="section-link">+ Buy Crypto</Link>
           </div>
-
           {loading ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
               Loading your holdings...
@@ -189,20 +190,14 @@ export default function DashboardPage() {
               <Link href="/buy-sell" style={{
                 background: 'var(--accent)', borderRadius: 8, padding: '10px 24px',
                 color: '#000', fontWeight: 700, fontSize: 14, textDecoration: 'none',
-              }}>
-                Buy Crypto Now
-              </Link>
+              }}>Buy Crypto Now</Link>
             </div>
           ) : (
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Coin</th>
-                  <th>Holdings</th>
-                  <th>Price (USD)</th>
-                  <th>Value (USD)</th>
-                  <th>Value (INR)</th>
-                  <th>24h Change</th>
+                  <th>Coin</th><th>Holdings</th><th>Price (USD)</th>
+                  <th>Value (USD)</th><th>Value (INR)</th><th>24h Change</th>
                 </tr>
               </thead>
               <tbody>
@@ -223,9 +218,7 @@ export default function DashboardPage() {
                           </div>
                         </div>
                       </td>
-                      <td style={{ fontFamily: 'var(--mono)' }}>
-                        {parseFloat(w.balance).toFixed(6)} {w.coin.symbol}
-                      </td>
+                      <td style={{ fontFamily: 'var(--mono)' }}>{parseFloat(w.balance).toFixed(6)} {w.coin.symbol}</td>
                       <td style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}>
                         ${priceUsd < 1 ? priceUsd.toFixed(6) : fmt(priceUsd)}
                       </td>
@@ -251,10 +244,10 @@ export default function DashboardPage() {
         {/* Quick actions */}
         <div className="grid-4">
           {[
-            { label: 'Buy Crypto',    href: '/buy-sell',  emoji: '⬇️', color: 'var(--accent-green)' },
-            { label: 'Sell Crypto',   href: '/buy-sell',  emoji: '⬆️', color: 'var(--accent-red)'   },
-            { label: 'Live Market',   href: '/market',    emoji: '📈', color: 'var(--accent)'        },
-            { label: 'Complete KYC',  href: '/kyc',       emoji: '🪪', color: 'var(--accent-amber)'  },
+            { label: 'Buy Crypto',   href: '/buy-sell', emoji: '⬇️', color: 'var(--accent-green)' },
+            { label: 'Sell Crypto',  href: '/buy-sell', emoji: '⬆️', color: 'var(--accent-red)'   },
+            { label: 'Live Market',  href: '/market',   emoji: '📈', color: 'var(--accent)'        },
+            { label: 'Complete KYC', href: '/kyc',      emoji: '🪪', color: 'var(--accent-amber)'  },
           ].map(q => (
             <Link key={q.label} href={q.href} style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -267,9 +260,7 @@ export default function DashboardPage() {
               onMouseOut={e => (e.currentTarget.style.borderColor = 'var(--border)')}
             >
               <span style={{ fontSize: 28 }}>{q.emoji}</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', textAlign: 'center' }}>
-                {q.label}
-              </span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', textAlign: 'center' }}>{q.label}</span>
             </Link>
           ))}
         </div>

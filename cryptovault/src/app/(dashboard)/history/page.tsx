@@ -2,15 +2,18 @@
 import { useEffect, useState } from 'react'
 import { txAPI } from '@/lib/api'
 
+// ── Match EXACTLY what TransactionSerializer returns ──────────
 interface Transaction {
   id: number
   type: 'buy' | 'sell' | 'withdraw' | 'deposit'
-  coin?: { symbol: string; name: string; image_url?: string }
-  coin_amount?: string
+  coin_symbol?: string   // flat field from serializer
+  coin_name?: string     // flat field from serializer
+  coin_amount: string
   usd_amount: string
   inr_amount?: string
   fee_usd?: string
-  status: 'completed' | 'pending' | 'failed'
+  price_at_time_usd?: string
+  status: 'completed' | 'pending' | 'failed' | 'cancelled'
   notes?: string
   created_at: string
 }
@@ -26,6 +29,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
   completed: { label: 'Completed', color: 'var(--accent-green)', bg: 'rgba(0,217,126,0.1)'  },
   pending:   { label: 'Pending',   color: 'var(--accent-amber)', bg: 'rgba(255,184,0,0.1)'  },
   failed:    { label: 'Failed',    color: 'var(--accent-red)',   bg: 'rgba(255,71,87,0.1)'  },
+  cancelled: { label: 'Cancelled', color: 'var(--accent-red)',   bg: 'rgba(255,71,87,0.1)'  },
 }
 
 function fmt(n: number, dec = 2) {
@@ -40,33 +44,31 @@ function timeStr(dateStr: string) {
 }
 
 export default function HistoryPage() {
-  const [txns, setTxns]         = useState<Transaction[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [filter, setFilter]     = useState<'all' | 'buy' | 'sell' | 'withdraw'>('all')
-  const [search, setSearch]     = useState('')
+  const [txns, setTxns]       = useState<Transaction[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter]   = useState<'all' | 'buy' | 'sell' | 'withdraw'>('all')
+  const [search, setSearch]   = useState('')
 
   useEffect(() => {
-    txAPI.getHistory().then(data => {
-      setTxns(data)
-      setLoading(false)
-    }).catch(() => setLoading(false))
+    txAPI.getHistory()
+      .then(data => { setTxns(data); setLoading(false) })
+      .catch(() => setLoading(false))
   }, [])
 
   const filtered = txns.filter(t => {
     const matchType   = filter === 'all' || t.type === filter
     const matchSearch = !search || (
-      t.coin?.symbol?.toLowerCase().includes(search.toLowerCase()) ||
-      t.coin?.name?.toLowerCase().includes(search.toLowerCase()) ||
+      t.coin_symbol?.toLowerCase().includes(search.toLowerCase()) ||
+      t.coin_name?.toLowerCase().includes(search.toLowerCase()) ||
       t.type.toLowerCase().includes(search.toLowerCase())
     )
     return matchType && matchSearch
   })
 
-  // Summary stats
-  const totalBought  = txns.filter(t => t.type === 'buy'  && t.status === 'completed').reduce((s, t) => s + parseFloat(t.usd_amount || '0'), 0)
-  const totalSold    = txns.filter(t => t.type === 'sell' && t.status === 'completed').reduce((s, t) => s + parseFloat(t.usd_amount || '0'), 0)
-  const totalWithdraw = txns.filter(t => t.type === 'withdraw').reduce((s, t) => s + parseFloat(t.usd_amount || '0'), 0)
-  const totalFees    = txns.reduce((s, t) => s + parseFloat(t.fee_usd || '0'), 0)
+  const totalBought   = txns.filter(t => t.type === 'buy'  && t.status === 'completed').reduce((s, t) => s + parseFloat(t.usd_amount || '0'), 0)
+  const totalSold     = txns.filter(t => t.type === 'sell' && t.status === 'completed').reduce((s, t) => s + parseFloat(t.usd_amount || '0'), 0)
+  const totalWithdraw = txns.filter(t => t.type === 'withdraw' && t.status === 'completed').reduce((s, t) => s + parseFloat(t.usd_amount || '0'), 0)
+  const totalFees     = txns.reduce((s, t) => s + parseFloat(t.fee_usd || '0'), 0)
 
   return (
     <>
@@ -79,7 +81,7 @@ export default function HistoryPage() {
 
       <div className="dash-content">
 
-        {/* ── SUMMARY CARDS ── */}
+        {/* Summary cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: '1.5rem' }}>
           {[
             { label: 'Total Bought',    value: `$${fmt(totalBought)}`,   color: 'var(--accent-green)', icon: '🛒' },
@@ -97,7 +99,7 @@ export default function HistoryPage() {
           ))}
         </div>
 
-        {/* ── FILTERS ── */}
+        {/* Filters */}
         <div style={{ display: 'flex', gap: 10, marginBottom: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <div className="buysell-tabs" style={{ marginBottom: 0 }}>
             {(['all', 'buy', 'sell', 'withdraw'] as const).map(f => (
@@ -108,13 +110,9 @@ export default function HistoryPage() {
               </button>
             ))}
           </div>
-
-          {/* Search */}
           <input
-            type="text"
-            placeholder="Search coin..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
+            type="text" placeholder="Search coin..."
+            value={search} onChange={e => setSearch(e.target.value)}
             style={{
               background: 'var(--card)', border: '1px solid var(--border)',
               borderRadius: 8, padding: '8px 14px', color: 'var(--text)',
@@ -123,123 +121,125 @@ export default function HistoryPage() {
           />
         </div>
 
-        {/* ── TABLE ── */}
+        {/* Table — desktop */}
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
 
-          {/* Table header */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '40px 1fr 120px 120px 100px 90px',
-            gap: 0, padding: '12px 20px',
-            borderBottom: '1px solid var(--border)',
-            fontSize: 11, fontWeight: 600,
-            color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase',
-          }}>
-            <div />
-            <div>Asset / Type</div>
-            <div style={{ textAlign: 'right' }}>Amount (USD)</div>
-            <div style={{ textAlign: 'right' }}>Coin Qty</div>
-            <div style={{ textAlign: 'center' }}>Status</div>
-            <div style={{ textAlign: 'right' }}>Date</div>
-          </div>
-
-          {/* Rows */}
-          {loading ? (
-            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-              Loading transactions...
+          {/* Header — hidden on mobile via overflowX scroll */}
+          <div style={{ overflowX: 'auto' }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '36px 1fr 110px 110px 95px 100px',
+              minWidth: 620,
+              padding: '12px 20px',
+              borderBottom: '1px solid var(--border)',
+              fontSize: 11, fontWeight: 600,
+              color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase',
+            }}>
+              <div />
+              <div>Asset / Type</div>
+              <div style={{ textAlign: 'right' }}>Amount (USD)</div>
+              <div style={{ textAlign: 'right' }}>Coin Qty</div>
+              <div style={{ textAlign: 'center' }}>Status</div>
+              <div style={{ textAlign: 'right' }}>Date</div>
             </div>
-          ) : filtered.length === 0 ? (
-            <div style={{ padding: '4rem', textAlign: 'center' }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
-              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No transactions yet</div>
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-                {filter !== 'all' ? `No ${filter} transactions found.` : 'Your transaction history will appear here.'}
+
+            {loading ? (
+              <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                Loading transactions...
               </div>
-              <a href="/buy-sell" style={{
-                background: 'var(--accent)', color: '#000', textDecoration: 'none',
-                borderRadius: 8, padding: '10px 24px', fontWeight: 600, fontSize: 13,
-              }}>
-                Make your first trade →
-              </a>
-            </div>
-          ) : (
-            filtered.map((t, i) => {
-              const meta   = TYPE_META[t.type]   || TYPE_META.buy
-              const status = STATUS_META[t.status] || STATUS_META.pending
-              const usd    = parseFloat(t.usd_amount || '0')
-              const coinAmt = parseFloat(t.coin_amount || '0')
+            ) : filtered.length === 0 ? (
+              <div style={{ padding: '4rem', textAlign: 'center' }}>
+                <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
+                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No transactions yet</div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+                  {filter !== 'all' ? `No ${filter} transactions found.` : 'Your transaction history will appear here.'}
+                </div>
+                <a href="/buy-sell" style={{
+                  background: 'var(--accent)', color: '#000', textDecoration: 'none',
+                  borderRadius: 8, padding: '10px 24px', fontWeight: 600, fontSize: 13,
+                }}>
+                  Make your first trade →
+                </a>
+              </div>
+            ) : (
+              filtered.map((t, i) => {
+                const meta    = TYPE_META[t.type] || TYPE_META.buy
+                const statusM = STATUS_META[t.status] || STATUS_META.pending
+                const usd     = parseFloat(t.usd_amount || '0')
+                const coinAmt = parseFloat(t.coin_amount || '0')
+                const isCredit = t.type === 'sell' || t.type === 'deposit'
 
-              return (
-                <div key={t.id} style={{
-                  display: 'grid',
-                  gridTemplateColumns: '40px 1fr 120px 120px 100px 90px',
-                  gap: 0, padding: '14px 20px',
-                  borderBottom: i < filtered.length - 1 ? '1px solid rgba(30,45,69,0.4)' : 'none',
-                  alignItems: 'center',
-                  transition: 'background 0.15s',
-                }}
-                  onMouseOver={e => (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.02)'}
-                  onMouseOut={e => (e.currentTarget as HTMLDivElement).style.background = 'transparent'}
-                >
-                  {/* Icon */}
-                  <div style={{ fontSize: 20 }}>{meta.icon}</div>
+                return (
+                  <div key={t.id} style={{
+                    display: 'grid',
+                    gridTemplateColumns: '36px 1fr 110px 110px 95px 100px',
+                    minWidth: 620,
+                    padding: '14px 20px',
+                    borderBottom: i < filtered.length - 1 ? '1px solid rgba(30,45,69,0.4)' : 'none',
+                    alignItems: 'center',
+                  }}>
+                    {/* Icon */}
+                    <div style={{ fontSize: 18 }}>{meta.icon}</div>
 
-                  {/* Asset / Type */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {t.coin?.image_url && (
-                      <img src={t.coin.image_url} alt={t.coin.symbol}
-                        style={{ width: 28, height: 28, borderRadius: '50%' }} />
-                    )}
+                    {/* Asset */}
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600 }}>
-                        {t.coin ? `${t.coin.name} (${t.coin.symbol})` : 'USD Withdrawal'}
+                        {t.coin_name
+                          ? `${t.coin_name} (${t.coin_symbol})`
+                          : t.type === 'withdraw' ? 'USD Withdrawal'
+                          : t.type === 'deposit'  ? 'USD Deposit'
+                          : 'Unknown'}
                       </div>
-                      <div style={{ fontSize: 11, color: meta.color, fontWeight: 500 }}>
+                      <div style={{ fontSize: 11, color: meta.color, fontWeight: 500, marginTop: 2 }}>
                         {meta.label}
-                        {t.notes && <span style={{ color: 'var(--text-dim)', marginLeft: 6 }}>· {t.notes.slice(0, 40)}{t.notes.length > 40 ? '…' : ''}</span>}
+                        {t.notes && (
+                          <span style={{ color: 'var(--text-dim)', marginLeft: 6 }}>
+                            · {t.notes.replace(' | Cancelled by admin — USD refunded.', '').slice(0, 50)}
+                            {t.notes.length > 50 ? '…' : ''}
+                          </span>
+                        )}
                       </div>
                     </div>
-                  </div>
 
-                  {/* USD Amount */}
-                  <div style={{ textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 600 }}>
-                    <span style={{ color: t.type === 'sell' || t.type === 'deposit' ? 'var(--accent-green)' : 'var(--text)' }}>
-                      {t.type === 'sell' || t.type === 'deposit' ? '+' : '-'}${fmt(usd)}
-                    </span>
-                    {t.fee_usd && parseFloat(t.fee_usd) > 0 && (
-                      <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>
-                        fee: ${parseFloat(t.fee_usd).toFixed(4)}
-                      </div>
-                    )}
-                  </div>
+                    {/* USD Amount */}
+                    <div style={{ textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 600 }}>
+                      <span style={{ color: isCredit ? 'var(--accent-green)' : 'var(--text)' }}>
+                        {isCredit ? '+' : '-'}${fmt(usd)}
+                      </span>
+                      {t.fee_usd && parseFloat(t.fee_usd) > 0 && (
+                        <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>
+                          fee: ${parseFloat(t.fee_usd).toFixed(4)}
+                        </div>
+                      )}
+                    </div>
 
-                  {/* Coin qty */}
-                  <div style={{ textAlign: 'right', fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>
-                    {coinAmt > 0 ? `${coinAmt.toFixed(6)} ${t.coin?.symbol || ''}` : '—'}
-                  </div>
+                    {/* Coin qty */}
+                    <div style={{ textAlign: 'right', fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>
+                      {coinAmt > 0 ? `${coinAmt.toFixed(6)} ${t.coin_symbol || ''}` : '—'}
+                    </div>
 
-                  {/* Status badge */}
-                  <div style={{ textAlign: 'center' }}>
-                    <span style={{
-                      background: status.bg, color: status.color,
-                      borderRadius: 6, padding: '3px 10px',
-                      fontSize: 11, fontWeight: 600,
-                    }}>
-                      {status.label}
-                    </span>
-                  </div>
+                    {/* Status */}
+                    <div style={{ textAlign: 'center' }}>
+                      <span style={{
+                        background: statusM.bg, color: statusM.color,
+                        borderRadius: 6, padding: '3px 10px',
+                        fontSize: 11, fontWeight: 600,
+                      }}>
+                        {statusM.label}
+                      </span>
+                    </div>
 
-                  {/* Date */}
-                  <div style={{ textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                    {timeStr(t.created_at)}
+                    {/* Date */}
+                    <div style={{ textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                      {timeStr(t.created_at)}
+                    </div>
                   </div>
-                </div>
-              )
-            })
-          )}
+                )
+              })
+            )}
+          </div>
         </div>
 
-        {/* Footer note */}
         {filtered.length > 0 && (
           <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-dim)', marginTop: '1rem' }}>
             Showing {filtered.length} of {txns.length} transactions
