@@ -100,7 +100,6 @@ class BuyRequest(models.Model):
     coin_price_usd = models.DecimalField(max_digits=20, decimal_places=8)
 
     transaction_id = models.CharField(max_length=200, unique=True)
-    screenshot     = models.ImageField(upload_to='buy_requests/screenshots/')
 
     status         = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     admin_note     = models.TextField(blank=True)

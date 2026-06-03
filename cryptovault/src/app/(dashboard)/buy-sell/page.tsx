@@ -41,11 +41,8 @@ export default function BuySellPage() {
   const [usdAmt, setUsdAmt]         = useState(100)
   const [buyStep, setBuyStep]       = useState<BuyStep>('select')
   const [txId, setTxId]             = useState('')
-  const [screenshot, setScreenshot] = useState<File | null>(null)
-  const [preview, setPreview]       = useState<string | null>(null)
   const [requestId, setRequestId]   = useState<number | null>(null)
   const [buyError, setBuyError]     = useState('')
-  const fileRef = useRef<HTMLInputElement>(null)
 
   // Sell state
   const [coinAmt, setCoinAmt]   = useState('')
@@ -103,35 +100,22 @@ export default function BuySellPage() {
   // ── UPI deep link ────────────────────────────────────────────
   const upiLink = `upi://pay?pa=${pmtSettings.upi_id}&pn=${encodeURIComponent(pmtSettings.upi_name)}&am=${Math.round(totalInr)}&cu=INR&tn=${encodeURIComponent(`CryptoVault Buy ${coin?.symbol || ''} - ${user?.email || ''}`)}`
 
-  // ── File handler ─────────────────────────────────────────────
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setScreenshot(file)
-    const reader = new FileReader()
-    reader.onload = () => setPreview(reader.result as string)
-    reader.readAsDataURL(file)
-  }
-
   // ── Submit buy request ───────────────────────────────────────
   async function submitBuyRequest() {
     if (!txId.trim()) { setBuyError('Please enter the Transaction ID / UTR'); return }
-    if (!screenshot)  { setBuyError('Please upload payment screenshot'); return }
     if (!coinId)      { setBuyError('No coin selected'); return }
 
     setLoading(true)
     setBuyError('')
     try {
-      const formData = new FormData()
-      formData.append('coin_id',        String(coinId))
-      formData.append('usd_amount',     String(usdAmt))
-      formData.append('inr_amount',     String(Math.round(totalInr)))
-      formData.append('transaction_id', txId.trim())
-      formData.append('screenshot',     screenshot)
+      const payload = {
+        coin_id:        coinId,
+        usd_amount:     usdAmt,
+        inr_amount:     Math.round(totalInr),
+        transaction_id: txId.trim(),
+      }
 
-      const res = await api.post('/wallet/buy/', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
+      const res = await api.post('/wallet/buy/', payload)
       setRequestId(res.data.id)
       setBuyStep('done')
     } catch (err: any) {
@@ -162,8 +146,8 @@ export default function BuySellPage() {
 
   // ── Reset buy flow ───────────────────────────────────────────
   function resetBuy() {
-    setBuyStep('select'); setTxId(''); setScreenshot(null)
-    setPreview(null); setRequestId(null); setBuyError('')
+    setBuyStep('select'); setTxId('')
+    setRequestId(null); setBuyError('')
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -489,30 +473,8 @@ export default function BuySellPage() {
                       placeholder="e.g. 123456789012 or UTR123456"
                       value={txId} onChange={e => setTxId(e.target.value)} />
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                      Find this in your UPI app under payment history
+                      Enter the transaction reference from your payment confirmation.
                     </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Payment Screenshot *</label>
-                    <div className="kyc-upload" onClick={() => fileRef.current?.click()} style={{ cursor: 'pointer' }}>
-                      {preview ? (
-                        <img src={preview} alt="screenshot"
-                          style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, objectFit: 'contain' }} />
-                      ) : (
-                        <>
-                          <div style={{ fontSize: 32, marginBottom: 8, opacity: 0.4 }}>📸</div>
-                          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                            Click to upload payment screenshot<br />
-                            <span style={{ color: 'var(--accent)' }}>JPG, PNG supported</span>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
-                    {screenshot && (
-                      <div style={{ fontSize: 12, color: 'var(--accent-green)', marginTop: 6 }}>✓ {screenshot.name} selected</div>
-                    )}
                   </div>
 
                   <div className="order-summary" style={{ marginBottom: '1.25rem' }}>
@@ -570,7 +532,7 @@ export default function BuySellPage() {
                     marginBottom: '1.5rem', lineHeight: 1.8, textAlign: 'left',
                   }}>
                     <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>What happens next?</div>
-                    <div>1. Admin reviews your payment screenshot &amp; Transaction ID</div>
+                    <div>1. Admin reviews your Transaction ID and confirms payment</div>
                     <div>2. Payment is verified against UPI records</div>
                     <div>3. {coin?.symbol} is added to your wallet automatically</div>
                     <div>4. Check Wallet → Coin Holdings to confirm</div>

@@ -147,7 +147,7 @@ def get_payment_settings(request):
 def create_buy_request(request):
     """
     POST /api/wallet/buy/
-    Multipart form: coin_id, usd_amount, inr_amount, transaction_id, screenshot
+    Body: coin_id, usd_amount, inr_amount, transaction_id
     """
     user = request.user
 
@@ -155,7 +155,6 @@ def create_buy_request(request):
     usd_amount     = decimal.Decimal(str(request.data.get('usd_amount', 0)))
     inr_amount     = decimal.Decimal(str(request.data.get('inr_amount', 0)))
     transaction_id = request.data.get('transaction_id', '').strip()
-    screenshot     = request.FILES.get('screenshot')
 
     if not coin_id:
         return Response({'error': 'coin_id is required'}, status=400)
@@ -163,8 +162,6 @@ def create_buy_request(request):
         return Response({'error': 'usd_amount must be greater than 0'}, status=400)
     if not transaction_id:
         return Response({'error': 'transaction_id is required'}, status=400)
-    if not screenshot:
-        return Response({'error': 'Payment screenshot is required'}, status=400)
 
     if BuyRequest.objects.filter(transaction_id=transaction_id).exists():
         return Response({'error': 'This transaction ID has already been submitted'}, status=400)
@@ -187,7 +184,6 @@ def create_buy_request(request):
         coin_quantity  = coin_qty,
         coin_price_usd = price_usd,
         transaction_id = transaction_id,
-        screenshot     = screenshot,
         status         = 'pending',
     )
 

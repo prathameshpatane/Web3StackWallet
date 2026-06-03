@@ -74,7 +74,7 @@ class BuyRequestAdmin(admin.ModelAdmin):
     list_display  = (
         'request_id', 'user_email', 'coin', 'coin_quantity_display',
         'inr_amount_display', 'transaction_id', 'status',
-        'screenshot_link', 'created_at'
+        'created_at'
     )
     list_filter   = ('status', 'coin')
     search_fields = ('user__email', 'transaction_id', 'coin__symbol')
@@ -84,13 +84,13 @@ class BuyRequestAdmin(admin.ModelAdmin):
     readonly_fields = (
         'user', 'coin', 'usd_amount', 'inr_amount',
         'coin_quantity', 'coin_price_usd',
-        'transaction_id', 'screenshot_preview',
+        'transaction_id',
         'created_at', 'reviewed_at', 'reviewed_by',
     )
 
     fieldsets = (
         ('👤 User & Coin', {'fields': ('user', 'coin', 'coin_quantity', 'coin_price_usd')}),
-        ('💰 Payment', {'fields': ('usd_amount', 'inr_amount', 'transaction_id', 'screenshot_preview')}),
+        ('💰 Payment', {'fields': ('usd_amount', 'inr_amount', 'transaction_id')}),
         ('✅ Admin Decision', {'fields': ('status', 'admin_note', 'reviewed_by', 'reviewed_at')}),
         ('📅 Timestamps', {'fields': ('created_at',), 'classes': ('collapse',)}),
     )
@@ -109,20 +109,6 @@ class BuyRequestAdmin(admin.ModelAdmin):
         return f'₹{float(obj.inr_amount):,.2f}'
     inr_amount_display.short_description = 'INR Paid'
 
-    def screenshot_link(self, obj):
-        if obj.screenshot:
-            return format_html('<a href="{}" target="_blank">📷 View</a>', obj.screenshot.url)
-        return '—'
-    screenshot_link.short_description = 'Screenshot'
-
-    def screenshot_preview(self, obj):
-        if obj.screenshot:
-            return format_html(
-                '<img src="{}" style="max-width:500px;max-height:400px;border-radius:8px;" />',
-                obj.screenshot.url
-            )
-        return 'No screenshot'
-    screenshot_preview.short_description = 'Payment Screenshot'
 
     @admin.action(description='✅ APPROVE — Add coins to user wallet')
     def approve_requests(self, request, queryset):
