@@ -8,6 +8,7 @@ SECRET_KEY = os.environ.get(
     'SECRET_KEY',
     'django-insecure-gm_k#vy7@lih=rthvb+p5=zfkrs3zvl6_=temmw-)_p$uq7tqa'
 )
+REFRESH_PRICES_SECRET = os.environ.get('REFRESH_PRICES_SECRET', '') 
 
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = ['*']

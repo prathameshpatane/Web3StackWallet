@@ -85,7 +85,7 @@ class WalletListView(generics.ListAPIView):
     def get_queryset(self):
         return (
             UserWallet.objects
-            .filter(user=self.request.user, balance__gt=0)
+            .filter(user=self.request.user)
             .select_related('coin')
             .order_by('-balance')
         )

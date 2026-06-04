@@ -24,9 +24,23 @@ export default function PortfolioPage() {
 
   useEffect(() => {
     fetchPortfolioData()
-    const interval = setInterval(fetchPortfolioData, 60000) // refresh every 60s
-    return () => clearInterval(interval)
-  }, [])
+    
+    // Refresh every 30 seconds (instead of 60) to catch admin approvals faster
+    const interval = setInterval(fetchPortfolioData, 30000)
+    
+    // Also refresh when tab becomes visible (user switches back to browser)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchPortfolioData()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+    }, [])
 
   async function fetchPortfolioData() {
     try {
