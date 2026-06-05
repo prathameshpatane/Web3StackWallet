@@ -2,17 +2,29 @@ name: Refresh Coin Prices
 
 on:
   schedule:
-    - cron: '*/15 * * * *'  # Every 5 minutes
-  workflow_dispatch:  # Manual trigger
+    - cron: '*/15 * * * *'   # Every 15 minutes
+  workflow_dispatch:           # Manual trigger from GitHub UI
 
 jobs:
   refresh:
     runs-on: ubuntu-latest
     steps:
-      - name: Refresh prices
+      - name: Refresh coin prices
         run: |
-          curl -X POST \
+          RESPONSE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
+            -X POST \
             https://web3-stack-wallet-4ug3.vercel.app/api/coins/refresh-prices/ \
             -H "Authorization: Bearer ${{ secrets.REFRESH_PRICES_SECRET }}" \
             -H "Content-Type: application/json" \
-            --fail --retry 3 --retry-delay 5
+            --retry 3 --retry-delay 5)
+          
+          echo "HTTP Status: $RESPONSE"
+          echo "Response body:"
+          cat /tmp/response.txt
+          
+          if [ "$RESPONSE" -ge 200 ] && [ "$RESPONSE" -lt 300 ]; then
+            echo "Prices refreshed successfully"
+          else
+            echo "Failed with status $RESPONSE"
+            exit 1
+          fi
