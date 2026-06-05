@@ -12,7 +12,7 @@ jobs:
       - name: Refresh prices
         run: |
           curl -X POST \
-            https://https://web3-stack-wallet-4ug3.vercel.app/api/coins/refresh-prices/ \
+            https://web3-stack-wallet-4ug3.vercel.app/api/coins/refresh-prices/ \
             -H "Authorization: Bearer ${{ secrets.REFRESH_PRICES_SECRET }}" \
             -H "Content-Type: application/json" \
             --fail --retry 3 --retry-delay 5
