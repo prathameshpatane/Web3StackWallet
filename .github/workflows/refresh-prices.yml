@@ -14,7 +14,6 @@ jobs:
           RESPONSE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
             -X POST \
             https://web3-stack-wallet-4ug3.vercel.app/api/coins/refresh-prices/ \
-            -H "Authorization: Bearer ${{ secrets.REFRESH_PRICES_SECRET }}" \
             -H "Content-Type: application/json" \
             --retry 3 --retry-delay 5)
           
