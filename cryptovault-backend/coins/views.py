@@ -49,13 +49,13 @@ def get_usd_to_inr(request):
 @permission_classes([permissions.AllowAny])   # allow frontend refresh button
 def refresh_prices(request):
     """POST /api/coins/refresh-prices/"""
-    auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-    secret_key = getattr(settings, 'REFRESH_PRICES_SECRET', None)
+    # auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+    # secret_key = getattr(settings, 'REFRESH_PRICES_SECRET', None)
     
-    if secret_key and auth_header:
-        token = auth_header.replace('Bearer ', '').strip()
-        if token != secret_key:
-            return Response({'error': 'Invalid token'}, status=403)
+    # if secret_key and auth_header:
+    #     token = auth_header.replace('Bearer ', '').strip()
+    #     if token != secret_key:
+    #         return Response({'error': 'Invalid token'}, status=403)
     count = _fetch_and_update_prices()
     return Response({ 'success': True,
                       'message': f'✅ Updated {count} coins',
