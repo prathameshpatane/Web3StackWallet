@@ -1,7 +1,5 @@
+import { redirect } from 'next/navigation'
+
 export default function AdminPage() {
-  return (
-    <div>
-      <h1>Admin Dashboard</h1>
-    </div>
-  )
+  redirect('https://web3-stack-wallet-4ug3.vercel.app/admin/')
 }

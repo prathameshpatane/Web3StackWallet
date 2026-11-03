@@ -120,7 +120,28 @@ CORS_ALLOW_ALL_ORIGINS   = True
 CORS_ALLOW_CREDENTIALS   = True
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
-    os.environ.get('FRONTEND_URL', 'https://your-frontend.vercel.app'),
+    'http://127.0.0.1:3000',
+    'https://www.web3stackwallets.com',
+    'https://web3stackwallets.com',
+    'https://web3-stack-wallet.vercel.app',
+    'https://web3-stack-wallet-4ug3.vercel.app',
+    os.environ.get('FRONTEND_URL', 'https://www.web3stackwallets.com'),
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://www.web3stackwallets.com',
+    'https://web3stackwallets.com',
+    'https://web3-stack-wallet-4ug3.vercel.app',
+    'https://web3-stack-wallet.vercel.app',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+]
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+AUTHENTICATION_BACKENDS = [
+    'users.backends.EmailOrUsernameModelBackend',
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
 STATIC_URL    = '/static/'
