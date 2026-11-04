@@ -62,7 +62,9 @@ def _approve_buy_request(req, reviewed_by):
     Core approval logic — called from both the action AND save_model.
     Adds coins to wallet and logs transaction.
     """
+    import decimal
     from transactions.models import Transaction
+    from notifications.models import Notification
 
     with db_transaction.atomic():
         # Add coins to user wallet
@@ -88,9 +90,18 @@ def _approve_buy_request(req, reviewed_by):
             usd_amount        = req.usd_amount,
             inr_amount        = req.inr_amount,
             price_at_time_usd = req.coin_price_usd,
-            fee_usd           = req.usd_amount * 1 / 1000,
+            fee_usd           = req.usd_amount * decimal.Decimal('0.001'),
             status            = 'completed',
             notes             = f'Buy approved. TxID: {req.transaction_id}',
+        )
+
+        # Notify user
+        Notification.objects.create(
+            user=req.user,
+            type='buy',
+            title='Buy Order Approved',
+            message=f'Your payment for {float(req.coin_quantity):.6f} {req.coin.symbol} has been verified and added to your wallet.',
+            link='/wallet',
         )
 
 
@@ -167,6 +178,15 @@ class BuyRequestAdmin(admin.ModelAdmin):
             if obj.status == 'rejected' and old.status != 'rejected':
                 obj.reviewed_by = request.user
                 obj.reviewed_at = timezone.now()
+                from notifications.models import Notification
+                reason = f" Reason: {obj.admin_note}" if obj.admin_note else ""
+                Notification.objects.create(
+                    user=obj.user,
+                    type='buy',
+                    title='Buy Order Rejected',
+                    message=f'Your buy order for {obj.coin.symbol} was rejected.{reason}',
+                    link='/buy-sell',
+                )
 
         super().save_model(request, obj, form, change)
 
@@ -190,11 +210,19 @@ class BuyRequestAdmin(admin.ModelAdmin):
 
     @admin.action(description='❌ REJECT — Payment not verified')
     def reject_requests(self, request, queryset):
+        from notifications.models import Notification
         rejected = 0
         for req in queryset.filter(status='pending'):
             req.status      = 'rejected'
             req.reviewed_by = request.user
             req.reviewed_at = timezone.now()
             req.save()
+            Notification.objects.create(
+                user=req.user,
+                type='buy',
+                title='Buy Order Rejected',
+                message=f'Your buy order for {req.coin.symbol} was rejected (payment could not be verified).',
+                link='/buy-sell',
+            )
             rejected += 1
         self.message_user(request, f'❌ {rejected} request(s) rejected.')

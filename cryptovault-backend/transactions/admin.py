@@ -57,9 +57,17 @@ class TransactionAdmin(admin.ModelAdmin):
 
     @admin.action(description='✅ Mark withdrawal as completed')
     def mark_completed(self, request, queryset):
+        from notifications.models import Notification
         updated = 0
         for tx in queryset.filter(type='withdraw', status='pending'):
             tx.status = 'completed'
             tx.save()
+            Notification.objects.create(
+                user=tx.user,
+                type='withdraw',
+                title='Withdrawal Completed',
+                message=f'Your withdrawal of ${float(tx.usd_amount):.2f} (approx. ₹{float(tx.inr_amount):.2f}) has been processed successfully.',
+                link='/history',
+            )
             updated += 1
         self.message_user(request, f'✅ {updated} withdrawal(s) marked as completed.')

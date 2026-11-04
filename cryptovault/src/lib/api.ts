@@ -81,6 +81,16 @@ export const authAPI = {
     const res = await api.get('/auth/profile/')
     return res.data
   },
+
+  async updateProfile(data: { username?: string; mobile?: string; first_name?: string; last_name?: string }) {
+    const res = await api.patch('/auth/profile/', data)
+    return res.data
+  },
+
+  async changePassword(data: { current_password: string; new_password: string; new_password2: string }) {
+    const res = await api.post('/auth/change-password/', data)
+    return res.data
+  },
 }
 
 // ── COINS ─────────────────────────────────────────────────────

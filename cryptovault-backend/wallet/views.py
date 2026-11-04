@@ -83,9 +83,21 @@ class WalletListView(generics.ListAPIView):
     pagination_class   = None
 
     def get_queryset(self):
+        user = self.request.user
+        active_coins = list(Coin.objects.filter(is_active=True))
+        existing_coin_ids = set(
+            UserWallet.objects.filter(user=user).values_list('coin_id', flat=True)
+        )
+        missing_coins = [c for c in active_coins if c.id not in existing_coin_ids]
+        if missing_coins:
+            UserWallet.objects.bulk_create([
+                UserWallet(user=user, coin=c, balance=0, wallet_address='')
+                for c in missing_coins
+            ], ignore_conflicts=True)
+
         return (
             UserWallet.objects
-            .filter(user=self.request.user)
+            .filter(user=user, coin__is_active=True)
             .select_related('coin')
             .order_by('-balance')
         )
@@ -251,6 +263,15 @@ def sell_coin(request):
             price_at_time_usd = price_usd,
             fee_usd           = fee,
             status            = 'completed',
+        )
+
+        from notifications.models import Notification
+        Notification.objects.create(
+            user=user,
+            type='sell',
+            title='Crypto Sold Successfully',
+            message=f'Sold {float(coin_amount):.6f} {coin.symbol} for ${float(usd_net):.2f}. USD credited to your cash balance.',
+            link='/wallet',
         )
 
     return Response({

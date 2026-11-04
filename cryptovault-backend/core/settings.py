@@ -71,26 +71,37 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL:
     # Production — Neon PostgreSQL via DATABASE_URL
     import dj_database_url
+    is_sqlite = DATABASE_URL.startswith('sqlite')
     DATABASES = {
         'default': dj_database_url.parse(
             DATABASE_URL,
             conn_max_age=0,
-            ssl_require=True,
+            ssl_require=False if is_sqlite else True,
         )
     }
-    DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS'] = True
+    if not is_sqlite:
+        DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS'] = True
 else:
-    # Local development — local PostgreSQL
-    DATABASES = {
-        'default': {
-            'ENGINE':   'django.db.backends.postgresql',
-            'NAME':     'cryptovault_db',
-            'USER':     'cryptovault_user',
-            'PASSWORD': 'cryptovault123',
-            'HOST':     'localhost',
-            'PORT':     '5432',
+    # Check if PostgreSQL connection settings are explicitly specified
+    if os.environ.get('POSTGRES_DB') or os.environ.get('DB_ENGINE') == 'postgresql':
+        DATABASES = {
+            'default': {
+                'ENGINE':   'django.db.backends.postgresql',
+                'NAME':     os.environ.get('POSTGRES_DB', 'cryptovault_db'),
+                'USER':     os.environ.get('POSTGRES_USER', 'cryptovault_user'),
+                'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'cryptovault123'),
+                'HOST':     os.environ.get('POSTGRES_HOST', 'localhost'),
+                'PORT':     os.environ.get('POSTGRES_PORT', '5432'),
+            }
         }
-    }
+    else:
+        # Default local development fallback to SQLite
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+            }
+        }
 
 AUTH_USER_MODEL = 'users.User'
 
@@ -146,7 +157,31 @@ AUTHENTICATION_BACKENDS = [
 
 STATIC_URL    = '/static/'
 STATIC_ROOT   = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
+
+# Optional Cloudinary Storage for media files in production
+if os.environ.get('CLOUDINARY_CLOUD_NAME'):
+    INSTALLED_APPS += [
+        'cloudinary_storage',
+        'cloudinary',
+    ]
+    CLOUDINARY_STORAGE = {
+        'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME'),
+        'API_KEY': os.environ.get('CLOUDINARY_API_KEY'),
+        'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET'),
+    }
+    STORAGES["default"] = {
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+    }
 
 MEDIA_URL  = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'

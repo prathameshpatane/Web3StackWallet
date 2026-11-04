@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User
-from .serializers import RegisterSerializer, UserSerializer
+from .serializers import RegisterSerializer, UserSerializer, ChangePasswordSerializer
 
 
 class RegisterView(generics.CreateAPIView):
@@ -31,12 +31,26 @@ class ProfileView(generics.RetrieveUpdateAPIView):
         return self.request.user
 
     def update(self, request, *args, **kwargs):
-        # Only allow updating mobile and username, not balance
-        allowed = {k: v for k, v in request.data.items() if k in ('mobile', 'username')}
+        # Allow updating username, first_name, last_name, and mobile
+        allowed = {k: v for k, v in request.data.items() if k in ('mobile', 'username', 'first_name', 'last_name')}
         serializer = self.get_serializer(self.request.user, data=allowed, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+
+class ChangePasswordView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = request.user
+        if not user.check_password(serializer.validated_data['current_password']):
+            return Response({'current_password': ['Current password is incorrect.']}, status=status.HTTP_400_BAD_REQUEST)
+        user.set_password(serializer.validated_data['new_password'])
+        user.save()
+        return Response({'message': 'Password changed successfully.'}, status=status.HTTP_200_OK)
 
 
 class LogoutView(APIView):

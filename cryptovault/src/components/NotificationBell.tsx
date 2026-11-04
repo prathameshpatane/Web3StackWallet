@@ -3,6 +3,7 @@
 // Drop this component into your dashboard layout header
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { notificationsAPI } from '@/lib/api'
 
 interface Notification {
@@ -329,12 +330,12 @@ export default function NotificationBell() {
               textAlign:   'center',
               flexShrink:  0,
             }}>
-              <a href="/notifications" style={{
+              <Link href="/notifications" onClick={() => setOpen(false)} style={{
                 fontSize: 12, color: 'var(--accent)',
                 textDecoration: 'none', fontWeight: 500,
               }}>
                 View all notifications →
-              </a>
+              </Link>
             </div>
           )}
         </div>

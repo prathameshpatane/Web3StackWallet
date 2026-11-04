@@ -30,7 +30,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model  = User
         fields = (
-            'id', 'email', 'username', 'mobile',
+            'id', 'email', 'username', 'first_name', 'last_name', 'mobile',
             'usd_balance',
             'is_kyc_verified', 'kyc_status',
             'date_joined',
@@ -39,3 +39,14 @@ class UserSerializer(serializers.ModelSerializer):
             'usd_balance', 'is_kyc_verified',
             'kyc_status', 'date_joined',
         )
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(required=True)
+    new_password     = serializers.CharField(required=True, validators=[validate_password])
+    new_password2    = serializers.CharField(required=True)
+
+    def validate(self, data):
+        if data['new_password'] != data['new_password2']:
+            raise serializers.ValidationError({'new_password2': 'New passwords do not match.'})
+        return data

@@ -51,4 +51,18 @@ def refund_on_withdrawal_cancel(sender, instance, **kwargs):
     refund_note = f' | AUTO-REFUNDED ${float(instance.usd_amount):.2f} to user.'
     instance.notes = (instance.notes or '') + refund_note
 
+    # Send notification to user
+    try:
+        from notifications.models import Notification
+        user = User.objects.get(pk=instance.user_id)
+        Notification.objects.create(
+            user=user,
+            type='withdraw',
+            title='Withdrawal Cancelled & Refunded',
+            message=f'Your withdrawal request of ${float(instance.usd_amount):.2f} was cancelled. The full amount has been refunded to your USD cash balance.',
+            link='/withdraw'
+        )
+    except Exception:
+        pass
+
     print(f'[SIGNAL] Refunded ${float(instance.usd_amount):.2f} to user_id={instance.user_id} — Tx #{instance.pk}')

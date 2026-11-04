@@ -30,7 +30,7 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f'✅ Backfill complete!\n'
+                f'[SUCCESS] Backfill complete!\n'
                 f'   Created: {created_count} new wallets\n'
                 f'   Already existed: {existing_count} wallets'
             )

@@ -35,6 +35,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/history':   'History',
   '/kyc':       'KYC Verification',
   '/settings':  'Settings',
+  '/notifications': 'Notifications',
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

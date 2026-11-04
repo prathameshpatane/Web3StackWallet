@@ -6,6 +6,8 @@ interface User {
   id: number
   email: string
   username: string
+  first_name?: string
+  last_name?: string
   mobile: string
   usd_balance: string
   is_kyc_verified: boolean
@@ -24,6 +26,7 @@ interface AuthStore {
   logout:   () => Promise<void>
   loadUser: () => Promise<void>
   clearError: () => void
+  updateProfile: (data: { username?: string; mobile?: string; first_name?: string; last_name?: string }) => Promise<void>
 }
 
 export const useAuthStore = create<AuthStore>((set) => ({
@@ -78,4 +81,16 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  updateProfile: async (data) => {
+    set({ loading: true, error: null })
+    try {
+      const user = await authAPI.updateProfile(data)
+      set({ user, loading: false })
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || err.response?.data?.username?.[0] || 'Profile update failed.'
+      set({ error: msg, loading: false })
+      throw err
+    }
+  },
 }))
