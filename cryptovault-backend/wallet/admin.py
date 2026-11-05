@@ -49,6 +49,11 @@ class WalletAdmin(admin.ModelAdmin):
     search_fields = ('user__email', 'coin__symbol')
     fields        = ('user', 'coin', 'balance', 'wallet_address')
 
+    def get_readonly_fields(self, request, obj=None):
+        if obj:  # editing an existing wallet
+            return ('user', 'coin')
+        return ()
+
     def value_usd_display(self, obj):
         try:
             val = float(obj.balance) * float(obj.coin.current_price_usd)
