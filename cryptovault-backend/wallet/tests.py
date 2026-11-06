@@ -137,3 +137,29 @@ class WalletAndTradingTests(TestCase):
         self.assertIsNotNone(notif)
         tx = Transaction.objects.filter(user=self.user, type='sell').first()
         self.assertIsNotNone(tx)
+
+    def test_admin_add_or_update_wallet(self):
+        from wallet.admin import WalletAdmin
+        factory = RequestFactory()
+        request = factory.get('/')
+        request.user = self.admin
+        middleware = SessionMiddleware(lambda r: None)
+        middleware.process_request(request)
+        request.session.save()
+        setattr(request, '_messages', FallbackStorage(request))
+
+        admin_instance = WalletAdmin(UserWallet, AdminSite())
+
+        # 1. Add wallet for user
+        new_wallet = UserWallet(user=self.user, coin=self.coin, balance=decimal.Decimal('1.5'))
+        admin_instance.save_model(request, new_wallet, form=None, change=False)
+
+        wallet = UserWallet.objects.get(user=self.user, coin=self.coin)
+        self.assertEqual(wallet.balance, decimal.Decimal('1.5'))
+
+        # 2. Attempting to add for existing user + coin updates balance smoothly
+        dup_attempt = UserWallet(user=self.user, coin=self.coin, balance=decimal.Decimal('8900.0'))
+        admin_instance.save_model(request, dup_attempt, form=None, change=False)
+
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.balance, decimal.Decimal('8900.0'))

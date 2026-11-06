@@ -55,7 +55,11 @@ This document details all technical issues identified, troubleshot, and resolved
 * **Automated Cancellation Refund & Notification**: Extended `refund_on_withdrawal_cancel` pre-save signal in `cryptovault-backend/transactions/signals.py` to dispatch an automatic notification to the user when an admin cancels a withdrawal and refunds USD back to their cash balance.
 * **Admin Actions**: Synchronized withdrawal approval and cancellation notifications in `cryptovault-backend/transactions/admin.py`.
 
-### E. Automatic Wallet Provisioning
+### E. Automatic Wallet Provisioning & Admin Coin Management
+* **User Detail Inline Table**: Added `UserWalletInline` to `cryptovault-backend/users/admin.py`, displaying a live table of all 20 cryptocurrencies directly on every User's admin page with directly editable balances, USD value calculations, and wallet addresses.
+* **Inline Table Editing in User Wallets**: Added `list_editable = ('balance',)` to `WalletAdmin` in `cryptovault-backend/wallet/admin.py` allowing bulk edits directly in the list table.
+* **Graceful Add / Update Handling**: Implemented `UserWalletAdminForm` and `save_model` in `WalletAdmin` so selecting an existing user and coin updates their balance seamlessly instead of failing with a unique constraint error.
+* **Bulk Wallet Initialization Action**: Added `initialize_all_wallets` action in `UserAdmin` to ensure all 20 coins exist for any selected user with a single click.
 * **Missing Coin Provisioning**: Updated `WalletListView.get_queryset` in `cryptovault-backend/wallet/views.py` to automatically bulk-create 0-balance `UserWallet` records for any newly active coins missing for a user.
 
 ### F. Database Configuration & Schema Migration

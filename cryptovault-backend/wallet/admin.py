@@ -1,5 +1,6 @@
 # wallet/admin.py
 
+from django import forms
 from django.contrib import admin
 from django.utils import timezone
 from django.utils.html import format_html
@@ -42,11 +43,29 @@ class PaymentSettingsAdmin(admin.ModelAdmin):
         return False
 
 
+class UserWalletAdminForm(forms.ModelForm):
+    class Meta:
+        model = UserWallet
+        fields = '__all__'
+
+    def validate_unique(self):
+        # If adding a wallet for a user and coin that already exists, allow it
+        # so save_model can update the existing record smoothly without error
+        if not self.instance.pk:
+            user = self.cleaned_data.get('user')
+            coin = self.cleaned_data.get('coin')
+            if user and coin and UserWallet.objects.filter(user=user, coin=coin).exists():
+                return
+        super().validate_unique()
+
+
 @admin.register(UserWallet)
 class WalletAdmin(admin.ModelAdmin):
+    form          = UserWalletAdminForm
     list_display  = ('user', 'coin', 'balance', 'value_usd_display', 'updated_at')
+    list_editable = ('balance',)
     list_filter   = ('coin',)
-    search_fields = ('user__email', 'coin__symbol')
+    search_fields = ('user__email', 'user__username', 'coin__symbol')
     fields        = ('user', 'coin', 'balance', 'wallet_address')
 
     def get_readonly_fields(self, request, obj=None):
@@ -60,6 +79,21 @@ class WalletAdmin(admin.ModelAdmin):
             return f'${val:,.2f}'
         except: return '$0.00'
     value_usd_display.short_description = 'Value (USD)'
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            existing = UserWallet.objects.filter(user=obj.user, coin=obj.coin).first()
+            if existing:
+                existing.balance = obj.balance
+                if obj.wallet_address:
+                    existing.wallet_address = obj.wallet_address
+                existing.save()
+                self.message_user(
+                    request,
+                    f"✅ Successfully updated {obj.coin.symbol} balance for {obj.user.email} to {obj.balance}."
+                )
+                return
+        super().save_model(request, obj, form, change)
 
 
 def _approve_buy_request(req, reviewed_by):
