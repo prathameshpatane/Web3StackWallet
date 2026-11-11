@@ -84,6 +84,8 @@ class WalletListView(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
+        from coins.views import auto_refresh_if_stale
+        auto_refresh_if_stale(120)
         active_coins = list(Coin.objects.filter(is_active=True))
         existing_coin_ids = set(
             UserWallet.objects.filter(user=user).values_list('coin_id', flat=True)

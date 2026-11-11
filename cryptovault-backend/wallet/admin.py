@@ -65,8 +65,17 @@ class WalletAdmin(admin.ModelAdmin):
     list_display  = ('user', 'coin', 'balance', 'value_usd_display', 'updated_at')
     list_editable = ('balance',)
     list_filter   = ('coin',)
-    search_fields = ('user__email', 'user__username', 'coin__symbol')
-    fields        = ('user', 'coin', 'balance', 'wallet_address')
+    search_fields = ('user__email', 'user__username', 'coin__symbol', 'coin__name')
+    fieldsets     = (
+        ('User & Coin', {
+            'fields': ('user', 'coin'),
+        }),
+        ('🪙 Coin Balance Management', {
+            'fields': ('balance', 'wallet_address'),
+            'description': 'Edit coin balance here. The user portfolio value updates automatically in real-time.',
+        }),
+    )
+    actions       = ['add_10_coins', 'add_100_coins', 'reset_balance_zero']
 
     def get_readonly_fields(self, request, obj=None):
         if obj:  # editing an existing wallet
@@ -94,6 +103,31 @@ class WalletAdmin(admin.ModelAdmin):
                 )
                 return
         super().save_model(request, obj, form, change)
+
+    @admin.action(description="➕ Add +10 coins to selected wallets")
+    def add_10_coins(self, request, queryset):
+        import decimal
+        updated = 0
+        for w in queryset:
+            w.balance += decimal.Decimal('10')
+            w.save(update_fields=['balance'])
+            updated += 1
+        self.message_user(request, f"Added 10 coins to {updated} wallet(s).")
+
+    @admin.action(description="➕ Add +100 coins to selected wallets")
+    def add_100_coins(self, request, queryset):
+        import decimal
+        updated = 0
+        for w in queryset:
+            w.balance += decimal.Decimal('100')
+            w.save(update_fields=['balance'])
+            updated += 1
+        self.message_user(request, f"Added 100 coins to {updated} wallet(s).")
+
+    @admin.action(description="🔄 Reset balance to 0 for selected wallets")
+    def reset_balance_zero(self, request, queryset):
+        updated = queryset.update(balance=0)
+        self.message_user(request, f"Reset balance to 0 for {updated} wallet(s).")
 
 
 def _approve_buy_request(req, reviewed_by):

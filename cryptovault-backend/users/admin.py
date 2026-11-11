@@ -8,6 +8,8 @@ class UserWalletInline(admin.TabularInline):
     model = UserWallet
     extra = 0
     can_delete = False
+    verbose_name = "Coin Balance"
+    verbose_name_plural = "🪙 User Crypto Balances (Edit coin balances directly below & click Save)"
     fields = ('coin', 'balance', 'value_usd_display', 'wallet_address', 'updated_at')
     readonly_fields = ('coin', 'value_usd_display', 'updated_at')
     ordering = ('coin__symbol',)
@@ -40,6 +42,22 @@ class UserAdmin(BaseUserAdmin):
             'description': 'usd_balance is in USD. Admin can directly edit this.',
         }),
     )
+
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        # Auto-ensure all active coin wallets exist for this user so admin sees and can edit all 20 coins
+        try:
+            from coins.models import Coin
+            active_coins = list(Coin.objects.filter(is_active=True))
+            existing_ids = set(UserWallet.objects.filter(user_id=object_id).values_list('coin_id', flat=True))
+            missing = [c for c in active_coins if c.id not in existing_ids]
+            if missing:
+                UserWallet.objects.bulk_create([
+                    UserWallet(user_id=object_id, coin=c, balance=0, wallet_address='')
+                    for c in missing
+                ])
+        except Exception:
+            pass
+        return super().change_view(request, object_id, form_url, extra_context=extra_context)
 
     @admin.action(description="Initialize all 20 coin wallets for selected users")
     def initialize_all_wallets(self, request, queryset):

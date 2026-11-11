@@ -88,16 +88,41 @@ Implemented a 12-test automated unit test suite across all four backend domains:
 | `kyc/tests.py` | `test_kyc_rejection_and_resubmission` | Rejection handling, rejection notice, resubmission flow |
 | `transactions/tests.py` | `test_withdraw_inr_flow` | USD debit, pending withdrawal transaction, INR calculation |
 | `transactions/tests.py` | `test_withdrawal_cancellation_refund_signal` | Pre-save auto-refund signal, USD restoration, refund notification |
+| `wallet/tests.py` | `test_admin_add_or_update_wallet` | Admin graceful add or update of existing user coin wallet balance |
 
-**Test Result**: `Ran 12 tests in 12.212s — OK (0 failures, 0 errors)`.
+**Test Result**: `Ran 13 tests in 15.764s — OK (0 failures, 0 errors)`.
 
 ---
 
-## 4. Verification & Production Build Status
+## 4. Live Coin Prices & Real-Time Portfolio Updates
+* **Backend Stale-Price Auto Refresh**: Added `auto_refresh_if_stale(120)` in `cryptovault-backend/coins/views.py`. When `MarketListView` or `WalletListView` is called, prices older than 2 minutes are automatically synchronized from CoinGecko in the background without blocking users.
+* **Automatic Portfolio Recalculation**: `WalletListView` recalculates `value_in_usd` and `value_in_inr` using live coin rates dynamically.
+* **Frontend 25-Second Polling & Manual Sync**: Implemented periodic background synchronization and a manual "Sync Live" button on the user dashboard.
+
+---
+
+## 5. Admin Panel Coin Balance Management Options
+* **User Profile Inline Editing**: Added `UserWalletInline` on `UserAdmin` (`Users > Users > [User]`) with auto-provisioning of all 20 coins upon opening the user's page, allowing direct balance modification.
+* **Inline Editable Table in User Wallets**: Added `list_editable = ('balance',)` on `WalletAdmin` (`Wallet > User wallets`), allowing quick bulk edits across all users and coins directly in the table.
+* **Duplicate Prevention & Graceful Updates**: Integrated `UserWalletAdminForm` and `save_model` so adding an existing user + coin updates the balance seamlessly instead of failing with a unique constraint error.
+* **Bulk Admin Actions**: Added `add_10_coins`, `add_100_coins`, and `reset_balance_zero` actions in `WalletAdmin`.
+
+---
+
+## 6. Attractive Web3 User Dashboard Redesign
+* **Glassmorphism Hero Banner**: Aurora gradient glow, dynamic greeting, KYC verification chip, and live net worth display with instant **USD ↔ INR** currency switcher.
+* **Live Market Ticker Strip**: Real-time scrolling horizontal strip of top cryptocurrencies with price and 24h percentage badges.
+* **4 Stat Metric Cards**: Glassmorphism cards with hover elevation showing USD Cash Balance, Total Crypto Portfolio, 24h Crypto P&L, and Active Holdings Count.
+* **Interactive Asset Table**: Tab toggling between "My Holdings" and "All 20 Crypto Assets", live search filtering, coin badges, real-time USD/INR values, and direct "Buy" / "Sell" quick actions.
+* **Recent Activity Feed**: Real-time snapshot of the user's latest buy, sell, and withdrawal transactions with status pills.
+* **Live Pulse Indicator**: Animated glowing emerald green radar dot indicating real-time data connection.
+
+---
+
+## 7. Verification & Production Build Status
 
 - **Django System Check**: `python manage.py check` — **0 issues**.
-- **Backend Test Suite**: 12 of 12 tests passed.
+- **Backend Test Suite**: 13 of 13 tests passed.
 - **Frontend TypeScript Check**: `npx tsc --noEmit` — **0 errors**.
 - **Next.js Production Build**: All 18 application routes compiled and prerendered cleanly.
-- **Git Status**: Pushed to remote `origin/main` ([commit `e935018`](https://github.com/prathameshpatane/Web3StackWallet/commit/e935018)).
 

@@ -30,10 +30,13 @@ class CoinSerializer(serializers.ModelSerializer):
 
 class MarketListView(generics.ListAPIView):
     """GET /api/coins/market/ — all active coins, public"""
-    queryset           = Coin.objects.filter(is_active=True)
     serializer_class   = CoinSerializer
     permission_classes = [permissions.AllowAny]
     pagination_class   = None
+
+    def get_queryset(self):
+        auto_refresh_if_stale(120)
+        return Coin.objects.filter(is_active=True).order_by('id')
 
 
 @api_view(['GET'])
@@ -45,22 +48,36 @@ def get_usd_to_inr(request):
     return Response({'usd_to_inr': rate})
 
 
-@api_view(['POST'])
+@api_view(['GET', 'POST'])
 @permission_classes([permissions.AllowAny])   # allow frontend refresh button
 def refresh_prices(request):
-    """POST /api/coins/refresh-prices/"""
-    # auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-    # secret_key = getattr(settings, 'REFRESH_PRICES_SECRET', None)
-    
-    # if secret_key and auth_header:
-    #     token = auth_header.replace('Bearer ', '').strip()
-    #     if token != secret_key:
-    #         return Response({'error': 'Invalid token'}, status=403)
+    """GET or POST /api/coins/refresh-prices/"""
     count = _fetch_and_update_prices()
-    return Response({ 'success': True,
-                      'message': f'✅ Updated {count} coins',
-                      'timestamp': timezone.now().isoformat()
-                    })
+    rate  = _get_live_usd_to_inr()
+    return Response({
+        'success': True,
+        'message': f'✅ Updated {count} coins',
+        'count': count,
+        'usd_to_inr': rate,
+        'timestamp': timezone.now().isoformat()
+    })
+
+
+def auto_refresh_if_stale(max_age_seconds=120):
+    """Automatically refresh prices from CoinGecko if older than max_age_seconds"""
+    try:
+        latest = (
+            Coin.objects.filter(is_active=True)
+            .exclude(coingecko_id='')
+            .exclude(coingecko_id__isnull=True)
+            .order_by('-last_updated')
+            .first()
+        )
+        if not latest or not latest.last_updated or (timezone.now() - latest.last_updated).total_seconds() > max_age_seconds:
+            return _fetch_and_update_prices()
+    except Exception:
+        pass
+    return 0
 
 
 def _fetch_and_update_prices():
