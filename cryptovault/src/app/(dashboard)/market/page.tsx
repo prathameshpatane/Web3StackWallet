@@ -14,6 +14,10 @@ function fmt(n: number, dec = 2) {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec }).format(n)
 }
 
+function fmtInr(n: number, dec = 2) {
+  return new Intl.NumberFormat('en-IN', { minimumFractionDigits: dec, maximumFractionDigits: dec }).format(n)
+}
+
 export default function MarketPage() {
   const [coins, setCoins]       = useState<Coin[]>([])
   const [loading, setLoading]   = useState(true)
@@ -58,7 +62,7 @@ export default function MarketPage() {
             <span className="notif-dot" />
             Live USD Prices
           </div>
-          <div className="header-badge">1 USD = ₹{fmt(usdToInr)}</div>
+          <div className="header-badge">1 USD = ₹{fmtInr(usdToInr)}</div>
         </div>
       </div>
 
@@ -134,7 +138,7 @@ export default function MarketPage() {
                         ${priceUsd < 1 ? priceUsd.toFixed(6) : fmt(priceUsd)}
                       </td>
                       <td style={{ fontFamily: 'var(--mono)', color: 'var(--text-muted)', fontSize: 12 }}>
-                        ₹{fmt(priceInr)}
+                        ₹{fmtInr(priceInr)}
                       </td>
                       <td>
                         <span className={`badge ${change >= 0 ? 'badge-green' : 'badge-red'}`}>

@@ -46,6 +46,15 @@ function fmt(n: number | string | null | undefined, dec = 2): string {
   }).format(num)
 }
 
+function fmtInr(n: number | string | null | undefined, dec = 2): string {
+  const num = typeof n === 'number' ? n : parseFloat(String(n || '0'))
+  if (isNaN(num)) return '0.00'
+  return new Intl.NumberFormat('en-IN', {
+    minimumFractionDigits: dec,
+    maximumFractionDigits: dec,
+  }).format(num)
+}
+
 function timeAgo(dateStr: string): string {
   try {
     const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
@@ -175,7 +184,7 @@ export default function DashboardPage() {
 
         <div className="dash-header-right">
           <div className="header-badge" style={{ display: 'none', md: 'flex' } as any}>
-            1 USD ≈ ₹{fmt(usdToInr)}
+            1 USD ≈ ₹{fmtInr(usdToInr)}
           </div>
 
           <button
@@ -279,7 +288,7 @@ export default function DashboardPage() {
                   fontSize: 38, fontWeight: 800, fontFamily: 'var(--mono)',
                   letterSpacing: -1, color: '#fff', textShadow: '0 0 24px rgba(0,229,255,0.25)',
                 }}>
-                  {loading ? '...' : currencyMode === 'USD' ? `$${fmt(totalUsd)}` : `₹${fmt(totalInr)}`}
+                  {loading ? '...' : currencyMode === 'USD' ? `$${fmt(totalUsd)}` : `₹${fmtInr(totalInr)}`}
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -330,10 +339,10 @@ export default function DashboardPage() {
 
               <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6, display: 'flex', gap: 14 }}>
                 <span>
-                  {currencyMode === 'USD' ? `≈ ₹${fmt(totalInr)} INR` : `≈ $${fmt(totalUsd)} USD`}
+                  {currencyMode === 'USD' ? `≈ ₹${fmtInr(totalInr)} INR` : `≈ $${fmt(totalUsd)} USD`}
                 </span>
                 <span>•</span>
-                <span>Live rate: $1 = ₹{fmt(usdToInr)}</span>
+                <span>Live rate: $1 = ₹{fmtInr(usdToInr)}</span>
               </div>
             </div>
 
@@ -407,7 +416,7 @@ export default function DashboardPage() {
               {loading ? '...' : `$${fmt(usdBalance)}`}
             </div>
             <div className="stat-change" style={{ color: 'var(--text-muted)' }}>
-              ≈ ₹{loading ? '...' : fmt(usdBalance * usdToInr)} ready to trade
+              ≈ ₹{loading ? '...' : fmtInr(usdBalance * usdToInr)} ready to trade
             </div>
           </div>
 
@@ -419,7 +428,7 @@ export default function DashboardPage() {
               {loading ? '...' : `$${fmt(portfolioUsd)}`}
             </div>
             <div className="stat-change" style={{ color: 'var(--text-muted)' }}>
-              ≈ ₹{loading ? '...' : fmt(portfolioUsd * usdToInr)} in coins
+              ≈ ₹{loading ? '...' : fmtInr(portfolioUsd * usdToInr)} in coins
             </div>
           </div>
 
@@ -579,7 +588,7 @@ export default function DashboardPage() {
                         <td style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}>
                           ${priceUsd < 1 ? priceUsd.toFixed(5) : fmt(priceUsd)}
                           <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 400 }}>
-                            ₹{fmt(priceUsd * usdToInr)}
+                            ₹{fmtInr(priceUsd * usdToInr)}
                           </div>
                         </td>
 
@@ -588,7 +597,7 @@ export default function DashboardPage() {
                         </td>
 
                         <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-muted)' }}>
-                          ₹{fmt(valInr)}
+                          ₹{fmtInr(valInr)}
                         </td>
 
                         <td>
